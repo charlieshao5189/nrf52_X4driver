@@ -1,0 +1,9 @@
+# Blacklist files/folders in same directory as the .gitignore file
+*.o
+*.d
+*.elf
+*.hex
+*.map
+
+# Whitelist some files
+# !
