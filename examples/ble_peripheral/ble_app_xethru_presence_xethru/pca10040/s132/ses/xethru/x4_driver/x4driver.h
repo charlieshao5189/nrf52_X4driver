@@ -406,6 +406,7 @@ typedef struct
 typedef struct
 {
     void* user_reference;
+    uint32_t initialized;
     X4DriverLock_t lock;
     X4DriverTimer_t sweep_timer;
     X4DriverTimer_t action_timer;
@@ -461,10 +462,10 @@ typedef struct
     The coefficients cannot be read back from X4.
     Should be written with most significant coefficient first.
  */
-    int8_t *downconversion_coeff_i1;
-    int8_t *downconversion_coeff_i2;
-    int8_t *downconversion_coeff_q1;
-    int8_t *downconversion_coeff_q2;
+    const int8_t *downconversion_coeff_i1;
+    const int8_t *downconversion_coeff_i2;
+    const int8_t *downconversion_coeff_q1;
+    const int8_t *downconversion_coeff_q2;
     
     int8_t downconversion_coeff_custom_q1[32];
     int8_t downconversion_coeff_custom_i1[32];
@@ -485,7 +486,7 @@ extern "C" {
  * Assumes Enable has been set.
  * @return Status of execution as defined in x4driver.h.
  */
-int x4driver_verify_firmware(X4Driver_t* x4driver, uint8_t * buffer, uint32_t size);
+int x4driver_verify_firmware(X4Driver_t* x4driver, const uint8_t * buffer, uint32_t size);
 
 
 /**
@@ -592,7 +593,7 @@ int x4driver_upload_firmware_default(X4Driver_t* x4driver);
  * Assumes Enable has been set.
  * @return Status of execution as defined in x4driver.h.
  */
-int x4driver_upload_firmware_custom(X4Driver_t* x4driver, uint8_t * buffer,uint32_t lenght);
+int x4driver_upload_firmware_custom(X4Driver_t* x4driver, const uint8_t * buffer,uint32_t lenght);
 
 
 /**

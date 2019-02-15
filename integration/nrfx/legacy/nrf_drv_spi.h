@@ -525,6 +525,44 @@ ret_code_t nrf_drv_spi_transfer(nrf_drv_spi_t const * const p_instance,
 }
 
 __STATIC_INLINE
+ret_code_t nrf_drv_spi_transfer_long_rx_buffer(nrf_drv_spi_t const * const p_instance,
+                                uint8_t const * p_tx_buffer,
+                                uint8_t         tx_buffer_length,
+                                uint8_t       * p_rx_buffer,
+                                uint32_t         rx_buffer_length)
+{
+    ret_code_t result = 0;
+    if (NRF_DRV_SPI_USE_SPIM)
+    {
+    #ifdef SPIM_PRESENT
+        nrfx_spim_xfer_desc_t const spim_xfer_desc =
+        {
+            .p_tx_buffer = p_tx_buffer,
+            .tx_length   = tx_buffer_length,
+            .p_rx_buffer = p_rx_buffer,
+            .rx_length   = rx_buffer_length,
+        };
+        result = nrfx_spim_xfer(&p_instance->u.spim, &spim_xfer_desc, 0);
+    #endif
+    }
+    else if (NRF_DRV_SPI_USE_SPI)
+    {
+    #ifdef SPI_PRESENT
+        nrfx_spi_xfer_desc_t const spi_xfer_desc =
+        {
+            .p_tx_buffer = p_tx_buffer,
+            .tx_length   = tx_buffer_length,
+            .p_rx_buffer = p_rx_buffer,
+            .rx_length   = rx_buffer_length,
+        };
+        result = nrfx_spi_xfer(&p_instance->u.spi, &spi_xfer_desc, 0);
+    #endif
+    }
+    return result;
+}
+
+
+__STATIC_INLINE
 ret_code_t nrf_drv_spi_xfer(nrf_drv_spi_t     const * const p_instance,
                             nrf_drv_spi_xfer_desc_t const * p_xfer_desc,
                             uint32_t                        flags)

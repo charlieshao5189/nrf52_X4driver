@@ -82,6 +82,9 @@
 #include "nrf_log_ctrl.h"
 #include "nrf_log_default_backends.h"
 
+// XeThru X4driver libs
+#include "taskRadar.h"
+
 #define APP_BLE_CONN_CFG_TAG 1 /**< A tag identifying the SoftDevice BLE configuration. */
 
 #define DEVICE_NAME "Nordic_UART"                        /**< Name of device. Will be included in the advertising data. */
@@ -103,11 +106,8 @@
 
 #define DEAD_BEEF 0xDEADBEEF /**< Value used as error code on stack dump, can be used to identify stack location on stack unwind. */
 
-#define UART_TX_BUF_SIZE 256 /**< UART TX buffer size. */
+#define UART_TX_BUF_SIZE 4096 /**< UART TX buffer size. */
 #define UART_RX_BUF_SIZE 256 /**< UART RX buffer size. */
-
-#define X4_ENABLE_PIN 20
-#define X4_GPIO_INT 19
 
 BLE_NUS_DEF(m_nus, NRF_SDH_BLE_TOTAL_LINK_COUNT); /**< BLE NUS service instance. */
 NRF_BLE_GATT_DEF(m_gatt);                         /**< GATT module instance. */
@@ -499,9 +499,9 @@ static void spi_init(void) {
 
   APP_ERROR_CHECK(nrf_drv_spi_init(&spi, &spi_config, spi_event_handler, NULL));
 
-  nrf_gpio_cfg_output(X4_ENABLE_PIN);
-  nrf_gpio_cfg_input(X4_GPIO_INT, GPIO_PIN_CNF_PULL_Pulldown);
-  nrf_gpio_pin_set(X4_ENABLE_PIN);
+//  nrf_gpio_cfg_output(X4_ENABLE_PIN);
+//  nrf_gpio_cfg_input(X4_GPIO_INT, GPIO_PIN_CNF_PULL_Pulldown);
+//  nrf_gpio_pin_set(X4_ENABLE_PIN);
   nrf_delay_ms(1000);
 
   // Reset rx buffer and transfer done flag
@@ -688,9 +688,9 @@ static void advertising_start(void) {
  */
 int main(void) {
   bool erase_bonds;
-
   // Initialize.
   uart_init();
+  taskRadar();
   log_init();
   timers_init();
   buttons_leds_init(&erase_bonds);
@@ -701,12 +701,12 @@ int main(void) {
   services_init();
   advertising_init();
   conn_params_init();
-  spi_init();
-
+  //spi_init();
   // Start execution.
-  printf("\r\nUART started!\r\n");
+  //printf("\r\nUART started!\r\n");
   NRF_LOG_INFO("Debug logging for UART over RTT started.");
   advertising_start();
+  
 
   // Enter main loop.
   for (;;) {

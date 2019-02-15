@@ -7,10 +7,9 @@
 #include <nrf_gpio.h>
 #include <sdk_config.h>
 
-
 #define X4_ENABLE_PIN 20
-#define X4_GPIO_INT 6
-#define SPI_CHANNEL 0
+#define X4_GPIO_INT 19
+#define X4_SPI_SS 22
 
 
 /**
