@@ -3,13 +3,13 @@
  * @brief Platform independent driver to interface with Xx radar.
  *
  */
-#include <nrf_log.h>
+
 #include <float.h>
 #include <math.h>
 #include <string.h>
 
 #include "x4driver.h"
-#include "xtcompiler.h"
+
 #include <stdbool.h>
 
 #define START_OF_SRAM_LSB       0x00
@@ -40,7 +40,7 @@
 #define RESET_COUNTERS_ACTION 0xff
 #define TRX_START_ACTION 0xff
 
-float32_t measured_fps_from_x4_timer_1_34hz[] = {1.004108124950404, 2.0080154538542674, 3.0120231300774165, 4.0152279344517687, 5.0185332341280828, 6.0240460751902258, 7.0273512120334267, 8.0272459942058507, 9.030651670395633, 10.032052556008651, 11.035257553778095, 12.040868513866339, 13.041667871447936, 14.044873167198913, 15.05559814087251, 16.04166747731395, 17.049378771457828, 18.061302650200414, 19.055187571769331, 20.044079750069113, 21.052587257711036, 22.070514637123811, 23.085253644961522, 24.081739235799915, 25.042606665713322, 26.083338304556776, 27.067615812132296, 28.050517228370968, 29.107493859414152, 30.066123144589028, 31.090047130967591, 32.083338705938836, 33.033175120617237, 34.040966553477801};
+const float32_t measured_fps_from_x4_timer_1_34hz[] = {1.004108124950404, 2.0080154538542674, 3.0120231300774165, 4.0152279344517687, 5.0185332341280828, 6.0240460751902258, 7.0273512120334267, 8.0272459942058507, 9.030651670395633, 10.032052556008651, 11.035257553778095, 12.040868513866339, 13.041667871447936, 14.044873167198913, 15.05559814087251, 16.04166747731395, 17.049378771457828, 18.061302650200414, 19.055187571769331, 20.044079750069113, 21.052587257711036, 22.070514637123811, 23.085253644961522, 24.081739235799915, 25.042606665713322, 26.083338304556776, 27.067615812132296, 28.050517228370968, 29.107493859414152, 30.066123144589028, 31.090047130967591, 32.083338705938836, 33.033175120617237, 34.040966553477801};
 
 #include "8051_firmware.h"
 
@@ -155,35 +155,35 @@ int _x4driver_get_framecounter(X4Driver_t* x4driver, uint32_t * read_value);
 void _invert(int8_t * source,int8_t * dst,uint8_t len);
 
 
-static int8_t downconversion_coeff_eu_q1[32] =
+static const int8_t downconversion_coeff_eu_q1[32] =
     { 0,   1,  -3,  0,   6,  -7, -3,  16,
     -10, -13,  24, -5, -25,  25,  6, -31,
      17,  16, -27,  6,  18, -16, -2,  12,
      -6,  -3,   5, -1,  -1,   1,  0,  0};
-static int8_t downconversion_coeff_eu_q2[32] =
+static const int8_t downconversion_coeff_eu_q2[32] =
     { 0,  -1,   3,  0,  -6,   7,  3, -16,
      10,  13, -24,  5,  25, -25, -6,  31,
     -17, -16,  27, -6, -18,  16,  2, -12,
       6,   3,  -5,  1,   1,  -1,  0,  0};
 
-static int8_t downconversion_coeff_eu_i1[32] =
+static const int8_t downconversion_coeff_eu_i1[32] =
     { 1,  -1,  -1,   5,  -3,  -6,  12, -2,
     -16,  18,   6, -27,  16,  17, -31,  6,
      25, -25,  -5,  24, -13, -10,  16, -3,
      -7,   6,   0,  -3,   1,   0,   0,  0};
-static int8_t downconversion_coeff_eu_i2[32] =
+static const int8_t downconversion_coeff_eu_i2[32] =
     {-1,   1,   1,  -5,   3,   6, -12,  2,
      16, -18,  -6,  27, -16, -17,  31, -6,
     -25,  25,   5, -24,  13,  10, -16,  3,
       7,  -6,   0,   3,  -1,   0,   0,  0};
 
-static int8_t downconversion_coeff_kcc_q[32] =
+static const int8_t downconversion_coeff_kcc_q[32] =
     { 0,   1,  -4,   5,  -3,  -5,  15, -17,
       8,  10, -27,  29, -12, -13,  31, -30,
      12,  10, -24,  21,  -8,  -5,  11,  -8,
       3,   1,  -2,   1,   0,   0,   0,   0};
 
-static int8_t downconversion_coeff_kcc_i[32] =
+static const int8_t downconversion_coeff_kcc_i[32] =
     { 1,  -2,   1,   3,  -8,  11,  -5,  -8,
      21, -24,  10,  12, -30,  31, -13, -12,
      29, -27,  10,   8, -17,  15,  -5,  -3,
@@ -292,13 +292,13 @@ void _update_normalization_constants(X4Driver_t* x4driver)
             (float32_t)(x4driver->iterations*x4driver->pulses_per_step) /
             1024.0;
 
-    if (x4driver->downconversion_enabled == 1){
     float32_t fnf = .0;
-    for (int i = 31; i >= 0; --i)
-        fnf += fabs((float32_t)x4driver->downconversion_coeff_i1[i]);
-    x4driver->filter_normalization_factor = 1.0/fnf;
+    if (x4driver->downconversion_enabled)
+    {
+        for (int i = 31; i >= 0; --i)
+            fnf += fabs((float32_t)x4driver->downconversion_coeff_i1[i]);
+        x4driver->filter_normalization_factor = 1.0/fnf;
     }
-
 }
 
 /**
@@ -557,26 +557,29 @@ int _x4driver_unpack_and_normalize_downconverted_frame(X4Driver_t* x4driver,floa
         {
             if (i%2 == 0)
             {
-                bins_data[i_data_start] = fbin;
+                if (bins_data != NULL)
+                    bins_data[i_data_start] = fbin;
                 i_data_start++;
             }
             else
             {
-                bins_data[q_data_start] = fbin;
+                if (bins_data != NULL)
+                    bins_data[q_data_start] = fbin;
                 q_data_start++;
             }
         }
         else
         {
-            bins_data[i] = fbin;
+            if (bins_data != NULL)
+                bins_data[i] = fbin;
         }
-
+        
         if ((fbin >= FLT_EPSILON) || (fbin <= -FLT_EPSILON))
             zero_frame = false;
-
+            
         raw_data_index = (i+1)*x4driver->bytes_per_counter;
     }
-
+    
     if (zero_frame)
 	{
         if (x4driver->zero_frame_counter < X4DRIVER_MAX_ALLOWED_ZERO_FRAMES)
@@ -617,7 +620,8 @@ int _x4driver_unpack_and_normalize_frame(X4Driver_t* x4driver,float* bins_data, 
         uint32_t bin_data = *((uint32_t*)&raw_data[raw_data_index]) & mask;
         #pragma GCC diagnostic pop
         float32_t fbin = bin_data*nfactor-offset;
-        bins_data[i] = fbin;
+        if (bins_data != NULL)
+            bins_data[i] = fbin;
         if ((fbin >= FLT_EPSILON) || (fbin <= -FLT_EPSILON))
             zero_frame = false;
         raw_data_index += x4driver->bytes_per_counter;//set_frame_area skip unused bins in start of ram line.
@@ -716,7 +720,7 @@ int x4driver_create(X4Driver_t** x4driver, void* instance_memory, X4DriverCallba
  * Assumes Enable has been set.
  * @return Status of execution as defined in x4driver.h.
  */
-int x4driver_upload_firmware_custom(X4Driver_t* x4driver, uint8_t * buffer,uint32_t lenght)
+int x4driver_upload_firmware_custom(X4Driver_t* x4driver, const uint8_t * buffer,uint32_t lenght)
 {
     uint32_t status = mutex_take(x4driver);
     if (status != XEP_ERROR_X4DRIVER_OK) return status;
@@ -1022,7 +1026,7 @@ int x4driver_upload_firmware_default(X4Driver_t* x4driver)
  * Assumes Enable has been set.
  * @return Status of execution as defined in x4driver.h.
  */
-int x4driver_verify_firmware(X4Driver_t* x4driver, uint8_t * buffer, uint32_t size)
+int x4driver_verify_firmware(X4Driver_t* x4driver, const uint8_t * buffer, uint32_t size)
 {
     uint32_t status = mutex_take(x4driver);
     if (status != XEP_ERROR_X4DRIVER_OK) return status;
@@ -1101,7 +1105,7 @@ int x4driver_set_frame_area(X4Driver_t* x4driver, float32_t start, float32_t end
     {
         return XEP_ERROR_X4DRIVER_ERROR_FRAME_AREA_END_OUT_OF_SCOPE;
     }
-
+    
     // Set correct max bins, down-conversion requires 4 first bins to initialize filter
     float32_t X4DRIVER_MAX_BINS_RANGE_METERS = X4DRIVER_MAX_BINS_RANGE_METERS_RF;
     if (x4driver->downconversion_enabled == 1)
@@ -1144,7 +1148,7 @@ int x4driver_set_frame_area(X4Driver_t* x4driver, float32_t start, float32_t end
     double FrameAreaStart = start;
     double FrameAreaStop = end;
     double FrameAreaOffset = x4driver->frame_area_offset_meters;
-
+    
     double dR_bin = X4DRIVER_METERS_PER_BIN * DecimationFactor;
     double R_frame_step = X4DRIVER_METERS_PER_BIN * 96;
     double R_FrameStart_discarded = NumberOfBinsDiscarded * dR_bin;
@@ -1160,7 +1164,7 @@ int x4driver_set_frame_area(X4Driver_t* x4driver, float32_t start, float32_t end
     double RxWait = (double)TxWait+diff_RxTxWait;
     uint8_t RxWait_8 = (uint8_t)RxWait;
     x4driver_set_rx_wait(x4driver,RxWait_8);
-
+    
     // Calculate limits of captured frame
     double FrameStart_quantized = diff_RxTxWait * R_frame_step + FrameAreaOffset;
 
@@ -1169,7 +1173,7 @@ int x4driver_set_frame_area(X4Driver_t* x4driver, float32_t start, float32_t end
     FrameAreaStop = fmax(FrameAreaStop, FrameAreaStart);
 
     // Find start bin index in the captured frame
-    double diff_eps_meter=1e-4;
+    double diff_eps_meter=1e-4; 
     double bin_count_diff = (FrameAreaStart - FrameStart_quantized) / dR_bin;
     double diff = bin_count_diff - ceil(bin_count_diff);
     uint32_t FrameAreaStart_quantized_ind;
@@ -1304,23 +1308,6 @@ int x4driver_read_frame_bytes(X4Driver_t* x4driver, uint32_t* frame_counter, uin
     uint32_t status = mutex_take(x4driver);
     if (status != XEP_ERROR_X4DRIVER_OK) return status;
 
-    if (x4driver->ram_select == 0x00) {
-        do {
-            status = x4driver_set_pif_register(x4driver,ADDR_PIF_RAM_SELECT_RW,0x01);
-            status = x4driver_get_pif_register(x4driver,ADDR_PIF_RAM_SELECT_RW,&(x4driver->ram_select));
-        } while (x4driver->ram_select != 1);
-    } else {
-        do {
-            status = x4driver_set_pif_register(x4driver,ADDR_PIF_RAM_SELECT_RW,0x00);
-            status = x4driver_get_pif_register(x4driver,ADDR_PIF_RAM_SELECT_RW,&(x4driver->ram_select));
-        } while (x4driver->ram_select != 0);
-    }
-    if (status != XEP_ERROR_X4DRIVER_OK)
-    {
-        mutex_give(x4driver);
-        return status;
-    }
-
     status = x4driver_set_pif_register(x4driver,ADDR_PIF_FETCH_RADAR_DATA_SPI_W,FETCH_DATA_ACTION);
     if (status != XEP_ERROR_X4DRIVER_OK)
     {
@@ -1329,7 +1316,9 @@ int x4driver_read_frame_bytes(X4Driver_t* x4driver, uint32_t* frame_counter, uin
     }
     uint8_t radar_data_addr = ADDR_SPI_RADAR_DATA_SPI_RE;
 
-    status = x4driver->callbacks.spi_write_read(x4driver->user_reference, &radar_data_addr, 1,data, x4driver->frame_read_size);
+    //status = x4driver->callbacks.spi_write_read(x4driver->user_reference, &radar_data_addr, 1,data, x4driver->frame_read_size);
+    status = x4driver->callbacks.spi_write_read(x4driver->user_reference, &radar_data_addr, 1,data, x4driver->frame_read_size-10);
+    _x4driver_set_x4_sw_action(x4driver,11);
 
     mutex_give(x4driver);
     return status;
@@ -1464,6 +1453,11 @@ int _x4driver_set_internal_register(X4Driver_t* x4driver, uint8_t address, uint8
     if (status != XEP_ERROR_X4DRIVER_OK) return status;
     address |= PIF_ADDRESS_WRITE;
 
+    if (x4driver->initialized == 0)
+    {
+        mutex_give(x4driver);
+        return XEP_ERROR_X4DRIVER_UNINITIALIZED;
+    }
 
     uint8_t fifo_status = 0x00;
     uint8_t retries = 0;
@@ -1569,6 +1563,12 @@ int _x4driver_get_framecounter(X4Driver_t* x4driver, uint32_t * value)
     uint32_t status = mutex_take(x4driver);
     if (status != XEP_ERROR_X4DRIVER_OK) return status;
 
+    if (x4driver->initialized == 0)
+    {
+        mutex_give(x4driver);
+        return XEP_ERROR_X4DRIVER_UNINITIALIZED;
+    }
+
     uint8_t tmp_rb[4];
     uint8_t fifo_status = 0x00;
     uint8_t data_in_fifo = 0;
@@ -1611,6 +1611,12 @@ int _x4driver_get_x4_internal_register(X4Driver_t* x4driver, uint8_t address,uin
 
     uint32_t status = mutex_take(x4driver);
     if (status != XEP_ERROR_X4DRIVER_OK) return status;
+
+    if (x4driver->initialized == 0)
+    {
+        mutex_give(x4driver);
+        return XEP_ERROR_X4DRIVER_UNINITIALIZED;
+    }
 
     uint8_t tmp_rb = 0x00;
     uint8_t fifo_status = 0x00;
@@ -1701,7 +1707,7 @@ int x4driver_init_clock(X4Driver_t* x4driver)
     uint32_t ossc_lock_attemps = OSC_LOCK_ATTEMPS_MAX;
 
     OSC_CTRL_REGISTER = (1<<6);// Enable level shifter, crystal clock output,
-    if (x4driver->external_load_caps)
+    if (x4driver->external_load_caps) 
     {
         // disable internal decoupling
         OSC_CTRL_REGISTER |= (1<<2);
@@ -1710,7 +1716,7 @@ int x4driver_init_clock(X4Driver_t* x4driver)
 
     OSC_CTRL_REGISTER |= (1<<1); // Enable external oscillator, disable internal decoupling
     x4driver_set_pif_register(x4driver,ADDR_PIF_OSC_CTRL_RW,OSC_CTRL_REGISTER);
-
+    
     uint8_t common_pll_status_register_value = 0x00;
     uint8_t osc_lock_bit = 1 << 6;
     uint32_t has_lock = 0;
@@ -2052,8 +2058,63 @@ int x4driver_set_frame_length(X4Driver_t* x4driver, uint8_t cycles)
  */
 int x4driver_init(X4Driver_t* x4driver)
 {
+    uint32_t status = mutex_take(x4driver);
+
+    // Reset x4driver struct to defaults
+    x4driver->zero_frame_counter = 0;
+    x4driver->frame_counter = 0;
+    x4driver->frame_length = 1536;
+    x4driver->frame_is_ready_strategy = FRAME_IS_READY_READ_REGISTERS;
+    x4driver->sweep_trigger_strategy = TRIGGER_SWEEP_READ_REGISTERS;
+    x4driver->next_action = 0;
+    x4driver->trigger_mode = SWEEP_TRIGGER_MANUAL;
+    x4driver->center_frequency = TX_CENTER_FREQUENCY_EU_7_290GHz;
+    x4driver->downconversion_enabled = 0;
+    x4driver->iq_separate = 1;
+    x4driver->configured_fps = 0;
+    x4driver->frame_area_offset_meters =0;
+    x4driver->frame_area_start = 0;
+    x4driver->frame_area_end = X4DRIVER_MAX_BINS_RANGE_METERS_RF;
+    x4driver->ram_select = 0;
+    x4driver->frame_read_size = 0;
+    x4driver->dac_max = 0;
+    x4driver->dac_min = 0;
+    x4driver->dac_step = 0;
+    x4driver->iterations = 0;
+    x4driver->pulses_per_step = 0;
+    x4driver->normalization_offset = 0;
+    x4driver->normalization_nfactor = 0;
+    x4driver->filter_normalization_factor = 0;
+    x4driver->bytes_per_counter = 0;
+    x4driver->rx_wait_offset = 0;
+    x4driver->rx_wait = 0;
+    x4driver->required_bins_active = 0;
+    x4driver->rx_mframes = 0;
+    x4driver->rx_mframes_coarse = 0;
+    x4driver->rx_wait_offset_m = 0;
+    x4driver->frame_area_offset_bins = 0;
+    x4driver->frame_area_start_requested = 0;
+    x4driver->frame_area_end_requested = 0;
+    x4driver->frame_area_start_ram_line = 0;
+    x4driver->frame_area_start_bin_requested = 0;
+    x4driver->frame_area_start_ram_line_bin = 0;
+    x4driver->frame_area_start_bin_offset = 0;
+    x4driver->frame_area_end_ram_line = 0;
+    x4driver->frame_area_end_bin_requested = 0;
+    x4driver->frame_area_end_ram_line_bin = 0;
+    x4driver->frame_area_end_bin_offset = 0;
+    x4driver->downconversion_coeff_i1 = 0;
+    x4driver->downconversion_coeff_i2 = 0;
+    x4driver->downconversion_coeff_q1 = 0;
+    x4driver->downconversion_coeff_q2 = 0;
+    memset(x4driver->downconversion_coeff_custom_q1, 0, 32);
+    memset(x4driver->downconversion_coeff_custom_i1, 0, 32);
+    memset(x4driver->downconversion_coeff_custom_q2, 0, 32);
+    memset(x4driver->downconversion_coeff_custom_i2, 0, 32);
+    
+    if (status != XEP_ERROR_X4DRIVER_OK) return status;
     x4driver->callbacks.enable_data_ready_isr(x4driver->user_reference,0);
-    uint32_t status = 0;
+    status = 0;
     status = x4driver_set_enable(x4driver,0);
     status = x4driver_set_enable(x4driver,1);
     // Wait until X4 is stable.
@@ -2061,45 +2122,75 @@ int x4driver_init(X4Driver_t* x4driver)
 
     uint8_t force_one = 0x00;
     uint8_t force_zero = 0x00;
-    //while(1){
-      x4driver_get_spi_register(x4driver, ADDR_SPI_FORCE_ONE_R, &force_one);
-      //NRF_LOG_INFO("FORCEONE = %X \n", force_one);
-      x4driver_get_spi_register(x4driver, ADDR_SPI_FORCE_ZERO_R, &force_zero);
-      //NRF_LOG_INFO("FORCEZERO = %X \n", force_zero);
-    //}
-
+    x4driver_get_spi_register(x4driver, ADDR_SPI_FORCE_ONE_R, &force_one);
+    x4driver_get_spi_register(x4driver, ADDR_SPI_FORCE_ZERO_R, &force_zero);
     if ((force_one != 0xff) || (force_zero != 0x00))
     {
+        x4driver->initialized = 0;
+        mutex_give(x4driver);
         return XEP_ERROR_X4DRIVER_NOK;
     }
     if (status != XEP_ERROR_X4DRIVER_OK)
+    {
+        x4driver->initialized = 0;
+        mutex_give(x4driver);
         return status;
+    }
+    
+    x4driver->initialized = 1;
 
     status = x4driver_upload_firmware_default(x4driver);
     if (status != XEP_ERROR_X4DRIVER_OK)
+    {
+        x4driver->initialized = 0;
+        mutex_give(x4driver);
         return status;
-
-
+    }
 
     status = x4driver_ldo_enable_all(x4driver);
     if (status != XEP_ERROR_X4DRIVER_OK)
+    {
+        x4driver->initialized = 0;
+        mutex_give(x4driver);
         return status;
+    }
     status = x4driver_init_clock(x4driver);
     if (status != XEP_ERROR_X4DRIVER_OK)
+    {
+        x4driver->initialized = 0;
+        mutex_give(x4driver);
         return status;
+    }
     status = x4driver_setup_default(x4driver);
     if (status != XEP_ERROR_X4DRIVER_OK)
+    {
+        x4driver->initialized = 0;
+        mutex_give(x4driver);
         return status;
+    }
     status = _update_normalization_variables(x4driver);
     if (status != XEP_ERROR_X4DRIVER_OK)
+    {
+        x4driver->initialized = 0;
+        mutex_give(x4driver);
         return status;
+    }
     status = x4driver_set_frame_area(x4driver,x4driver->frame_area_start,x4driver->frame_area_end);
     if (status != XEP_ERROR_X4DRIVER_OK)
+    {
+        x4driver->initialized = 0;
+        mutex_give(x4driver);
         return status;
+    }
     status = x4driver_set_downconversion(x4driver,0);
     if (status != XEP_ERROR_X4DRIVER_OK)
+    {
+        x4driver->initialized = 0;
+        mutex_give(x4driver);
         return status;
+    }
     x4driver->callbacks.enable_data_ready_isr(x4driver->user_reference, 1);
+    mutex_give(x4driver);
     return status;
 }
 
@@ -2433,10 +2524,10 @@ int x4driver_set_fps(X4Driver_t* x4driver, float32_t fps)
     }
     else if (x4driver->trigger_mode == SWEEP_TRIGGER_X4)
     {
-        _x4driver_set_x4_sw_action(x4driver,X4_SW_ACTION_STOP_TIMER);
+        status |= _x4driver_set_x4_sw_action(x4driver,X4_SW_ACTION_STOP_TIMER);
         if (fps > FLT_EPSILON)
         {
-            _x4driver_set_x4_sw_register(x4driver,X4_SW_USE_PERIOD_TRIGGER,0);
+            status |= _x4driver_set_x4_sw_register(x4driver,X4_SW_USE_PERIOD_TRIGGER,0);
             if ((fps > 0.0) && fps < 1.0)
             {
                 fps = 1.0;
@@ -2449,9 +2540,9 @@ int x4driver_set_fps(X4Driver_t* x4driver, float32_t fps)
             }
             uint8_t fps_lsb = (uint8_t)(fps_uint & 0x000000ff);
             uint8_t fps_msb = (uint8_t)((fps_uint & 0x0000ff00)>>8);
-            _x4driver_set_x4_sw_register(x4driver,X4_SW_REGISTER_FPS_LSB_ADDR,fps_lsb);
-            _x4driver_set_x4_sw_register(x4driver,X4_SW_REGISTER_FPS_MSB_ADDR,fps_msb);
-            _x4driver_set_x4_sw_action(x4driver,X4_SW_ACTION_START_TIMER);
+            status |= _x4driver_set_x4_sw_register(x4driver,X4_SW_REGISTER_FPS_LSB_ADDR,fps_lsb);
+            status |= _x4driver_set_x4_sw_register(x4driver,X4_SW_REGISTER_FPS_MSB_ADDR,fps_msb);
+            status |= _x4driver_set_x4_sw_action(x4driver,X4_SW_ACTION_START_TIMER);
         }
     }
     else if (x4driver->trigger_mode == SWEEP_TRIGGER_MANUAL)

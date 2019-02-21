@@ -43,6 +43,8 @@
 "Output/ble_app_uart_pca10040_s132 Debug/Obj/nrfx_spim.o"
 "Output/ble_app_uart_pca10040_s132 Debug/Obj/nrf_drv_spi.o"
 "Output/ble_app_uart_pca10040_s132 Debug/Obj/nrf_drv_ppi.o"
+"Output/ble_app_uart_pca10040_s132 Debug/Obj/nrfx_timer.o"
+"Output/ble_app_uart_pca10040_s132 Debug/Obj/nrfx_ppi.o"
 "Output/ble_app_uart_pca10040_s132 Debug/Obj/bsp.o"
 "Output/ble_app_uart_pca10040_s132 Debug/Obj/bsp_btn_ble.o"
 "Output/ble_app_uart_pca10040_s132 Debug/Obj/main.o"

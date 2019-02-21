@@ -5,6 +5,7 @@
 #include "nrf_delay.h"
 #include "nrf_drv_gpiote.h"
 #include "nrf_drv_ppi.h"
+#include "nrf_log.h"
 #include "radar_hal.h"
 #include "x4driver.h"
 #include "xep_hal.h"
@@ -72,18 +73,17 @@ void x4driver_data_ready(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t action)
   status = x4driver_read_frame_bytes(x4driver, &frame_counter, data_frame_bytes, x4driver->frame_read_size);
 
   if (XEP_ERROR_X4DRIVER_OK == status) {
-    printf("\n x4 frame data ready! \n");
+    NRF_LOG_INFO("\n x4 frame data ready! \n");
 
   } else {
-    printf("fail to get x4 frame data errorcode:%d! \n", status);
+    NRF_LOG_INFO("fail to get x4 frame data errorcode:%d! \n", status);
   }
 
-  printf("Size:%d,New Frame Data Normolized(%d){\n", x4driver->frame_read_size, frame_counter);
+  NRF_LOG_INFO("Size:%d,New Frame Data Normolized(%d){\n", x4driver->frame_read_size, frame_counter);
   for (uint32_t i = 0; i < x4driver->frame_read_size; i=i+1) {
-    printf("[%d]:%X, ",i, data_frame_bytes[i]);
-
+    NRF_LOG_INFO("[%d]:%X, ",i, data_frame_bytes[i]);
   }
-  printf("}\n");
+  NRF_LOG_INFO("}\n");
 
 //    if (true == first_frame) {
 //    first_frame = false;
@@ -94,24 +94,28 @@ void x4driver_data_ready(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t action)
 //      fdata_count = bin_count * 2;
 //    }
 //    data_frame_normolized = (float32_t *) calloc(0,fdata_count);
+//    //data_frame_normolized = (float32_t *) malloc(fdata_count);
 //    }
 //
 //    status = x4driver_read_frame_normalized(x4driver,&frame_counter,data_frame_normolized,fdata_count);
 //
 //    if(XEP_ERROR_X4DRIVER_OK == status)
 //    {
-//        printf("x4 frame data ready! \n");
+//        NRF_LOG_INFO("x4 frame data ready! \n");
 //
 //    }
 //    else
 //    {
-//        printf("fail to get x4 frame data errorcode:%d! \n", status);
+//        NRF_LOG_INFO("fail to get x4 frame data errorcode:%d! \n", status);
 //    }
 //
 //    printf("Size:%d,New Frame Data Normolized(%d){\n",fdata_count,frame_counter);
 //    for(uint32_t i=0; i<fdata_count; i++)
 //    {
-//        printf("[%d]:%f, ",i,data_frame_normolized[i] );
+//       printf("[%d]:%f, ",i, data_frame_normolized[i]);
+//        //NRF_LOG_INFO("[%d]:" NRF_LOG_FLOAT_MARKER,i,NRF_LOG_FLOAT(data_frame_normolized[i]) );
+//        //NRF_LOG_INFO(NRF_LOG_FLOAT_MARKER,NRF_LOG_FLOAT(data_frame_normolized[i]) );
+//        //NRF_LOG_INFO(NRF_LOG_FLOAT_MARKER,NRF_LOG_FLOAT(0.168f) );
 //    }
 //    printf("}\n");
 
@@ -184,7 +188,7 @@ uint32_t task_radar_init(X4Driver_t **x4driver) {
   if (status == XT_SUCCESS) {
     printf("radar_hal_init success\n");
   } else {
-    printf("radar_hal_init unknow situcation\n");
+    NRF_LOG_INFO("radar_hal_init unknow situcation\n");
   }
 #endif // DEBUG
 
@@ -227,9 +231,9 @@ uint32_t task_radar_init(X4Driver_t **x4driver) {
 
 #ifdef DEBUG
   if (status == XEP_ERROR_X4DRIVER_OK) {
-    printf("x4driver_create success\n");
+    NRF_LOG_INFO("x4driver_create success\n");
   } else {
-    printf("x4driver_create unknow situcation\n");
+    NRF_LOG_INFO("x4driver_create unknow situcation\n");
   }
 #endif // DEBUG
 
@@ -237,8 +241,8 @@ uint32_t task_radar_init(X4Driver_t **x4driver) {
   //task_parameters->dispatch = dispatch;
   task_parameters->x4driver = *x4driver;
 
-  //task_parameters->x4driver->spi_buffer_size = 192 * 32;
-  task_parameters->x4driver->spi_buffer_size = 4609;// baseband 188*2*6= 2256   rf 1536*3= 4608
+  task_parameters->x4driver->spi_buffer_size = 192 * 32;
+  //task_parameters->x4driver->spi_buffer_size = 4609;// baseband 188*2*6= 2256   rf 1536*3= 4608
   task_parameters->x4driver->spi_buffer = (uint8_t *)malloc(task_parameters->x4driver->spi_buffer_size);
   if ((((uint32_t)task_parameters->x4driver->spi_buffer) % 32) != 0) {
     int alignment_diff = 32 - (((uint32_t)task_parameters->x4driver->spi_buffer) % 32);
@@ -254,7 +258,7 @@ uint32_t task_radar_init(X4Driver_t **x4driver) {
 }
 
 int taskRadar(void) {
-  printf("task_radar start!\n");
+  NRF_LOG_INFO("task_radar start!\n");
 
   uint32_t status = 0;
   //uint8_t* data_frame;
@@ -265,11 +269,11 @@ int taskRadar(void) {
 
 #ifdef DEBUG
   if (status == XT_SUCCESS) {
-    printf("task_radar_init success\n");
+    NRF_LOG_INFO("task_radar_init success\n");
   } else if (status == XT_ERROR) {
-    printf("task_radar_init failure\n");
+    NRF_LOG_INFO("task_radar_init failure\n");
   } else {
-    printf("task_radar_init unknow situcation\n");
+    NRF_LOG_INFO("task_radar_init unknow situcation\n");
   }
 #endif // DEBUG
 
@@ -277,18 +281,18 @@ int taskRadar(void) {
 
 #ifdef DEBUG
   if (tmp_status == XEP_ERROR_X4DRIVER_OK) {
-    printf("x4driver_init success\n");
+    NRF_LOG_INFO("x4driver_init success\n");
   } else {
-    printf("x4driver_init unknow situcation\n");
+    NRF_LOG_INFO("x4driver_init unknow situcation\n");
   }
 #endif // DEBUG
 
   status = x4driver_set_sweep_trigger_control(x4driver, SWEEP_TRIGGER_X4); // By default let sweep trigger control done by X4
 #ifdef DEBUG
   if (status == XEP_ERROR_X4DRIVER_OK) {
-    printf("x4driver_set_sweep_trigger_control success\n");
+    NRF_LOG_INFO("x4driver_set_sweep_trigger_control success\n");
   } else {
-    printf("x4driver_set_sweep_trigger_control unknow situcation\n");
+    NRF_LOG_INFO("x4driver_set_sweep_trigger_control unknow situcation\n");
   }
 #endif // DEBUG
 
@@ -297,87 +301,87 @@ int taskRadar(void) {
   status = x4driver_set_dac_min(x4driver, 949);
   if (status != XEP_ERROR_X4DRIVER_OK) {
 #ifdef DEBUG
-    printf("Error setting dac minimum\n");
-    printf("Error code=%d\n", status);
+    NRF_LOG_INFO("Error setting dac minimum\n");
+    NRF_LOG_INFO("Error code=%d\n", status);
 #endif
     return 1;
   }
 #ifdef DEBUG
-  printf("x4driver_set_dac_min success\n");
+  NRF_LOG_INFO("x4driver_set_dac_min success\n");
 #endif
   status = x4driver_set_dac_max(x4driver, 1100);
   if (status != XEP_ERROR_X4DRIVER_OK) {
 #ifdef DEBUG
-    printf("Error setting dac maximum\n");
-    printf("Error code=%d\n", status);
+    NRF_LOG_INFO("Error setting dac maximum\n");
+    NRF_LOG_INFO("Error code=%d\n", status);
 #endif
     return 1;
   }
 #ifdef DEBUG
-  printf("x4driver_set_dac_max success\n");
+  NRF_LOG_INFO("x4driver_set_dac_max success\n");
 #endif
   status = x4driver_set_iterations(x4driver, 32);
   if (status != XEP_ERROR_X4DRIVER_OK) {
 #ifdef DEBUG
-    printf("Error in x4driver_set_iterations\n");
-    printf("Error code=%d\n", status);
+    NRF_LOG_INFO("Error in x4driver_set_iterations\n");
+    NRF_LOG_INFO("Error code=%d\n", status);
 #endif
     return 1;
   }
 #ifdef DEBUG
-  printf("x4driver_set_iterations success\n");
+  NRF_LOG_INFO("x4driver_set_iterations success\n");
 #endif
   status = x4driver_set_pulses_per_step(x4driver, 140);
   if (status != XEP_ERROR_X4DRIVER_OK) {
 #ifdef DEBUG
-    printf("Error in x4driver_set_pulses_per_step\n");
-    printf("Error code=%d\n", status);
+    NRF_LOG_INFO("Error in x4driver_set_pulses_per_step\n");
+    NRF_LOG_INFO("Error code=%d\n", status);
 #endif
     return 1;
   }
 #ifdef DEBUG
-  printf("x4driver_set_pulses_per_step success\n");
+  NRF_LOG_INFO("x4driver_set_pulses_per_step success\n");
 #endif
-  status = x4driver_set_downconversion(x4driver, 1); // Radar data as downconverted baseband IQ, not RF.
+  status = x4driver_set_downconversion(x4driver, 0); // Radar data as downconverted baseband IQ, not RF.
   if (status != XEP_ERROR_X4DRIVER_OK) {
 #ifdef DEBUG
-    printf("Error in x4driver_set_downconversion\n");
-    printf("Error code=%d\n", status);
+    NRF_LOG_INFO("Error in x4driver_set_downconversion\n");
+    NRF_LOG_INFO("Error code=%d\n", status);
 #endif
     return 1;
   }
 #ifdef DEBUG
-  printf("x4driver_set_downconversion success\n");
+  NRF_LOG_INFO("x4driver_set_downconversion success\n");
 #endif
 
   status = x4driver_set_frame_area_offset(x4driver, 0); // Given by module HW. Makes frame_area start = 0 at front of module.
   if (status != XEP_ERROR_X4DRIVER_OK) {
 #ifdef DEBUG
-    printf("Error in x4driver_set_frame_area_offseto\n");
-    printf("Error code=%d\n", status);
+    NRF_LOG_INFO("Error in x4driver_set_frame_area_offseto\n");
+    NRF_LOG_INFO("Error code=%d\n", status);
 #endif
     return 1;
   }
 #ifdef DEBUG
-  printf("x4driver_set_frame_area_offset success\n");
+  NRF_LOG_INFO("x4driver_set_frame_area_offset success\n");
 #endif
 
-  status = x4driver_set_frame_area(x4driver, 0, 0.5); // Observe from 0.5m to 4.0m.
+  status = x4driver_set_frame_area(x4driver, 0, 2); // Observe from 0.5m to 4.0m.
   if (status != XEP_ERROR_X4DRIVER_OK) {
 #ifdef DEBUG
-    printf("Error in x4driver_set_frame_area\n");
-    printf("Error code=%d\n", status);
+    NRF_LOG_INFO("Error in x4driver_set_frame_area\n");
+    NRF_LOG_INFO("Error code=%d\n", status);
 #endif
     return 1;
   }
-  printf("x4driver_set_frame_area success\n");
+  NRF_LOG_INFO("x4driver_set_frame_area success\n");
 
   status = x4driver_check_configuration(x4driver);
 #ifdef DEBUG
   if (status == XEP_ERROR_X4DRIVER_OK) {
-    printf("x4driver_check_configuration success\n");
+    NRF_LOG_INFO("x4driver_check_configuration success\n");
   } else {
-    printf("x4driver_check_configuration unknow situcation\n");
+    NRF_LOG_INFO("x4driver_check_configuration unknow situcation\n");
   }
 #endif // DEBUG
 
@@ -385,13 +389,13 @@ int taskRadar(void) {
   status = x4driver_set_fps(x4driver, 1); // Generate 5 frames per second
   if (status != XEP_ERROR_X4DRIVER_OK) {
 #ifdef DEBUG
-    printf("Error in x4driver_set_fps\n");
-    printf("Error code=%d\n", status);
+    NRF_LOG_INFO("Error in x4driver_set_fps\n");
+    NRF_LOG_INFO("Error code=%d\n", status);
 #endif
     return 1;
   }
 #ifdef DEBUG
-  printf("x4driver_set_fps success\n");
+  NRF_LOG_INFO("x4driver_set_fps success\n");
 #endif
 
   for (;;) {

@@ -4,6 +4,7 @@
 *.elf
 *.hex
 *.map
+modules/nrfx/doc
 
 # Whitelist some files
 # !

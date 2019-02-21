@@ -26,10 +26,11 @@
   <ProjectSessionItem path="ble_app_uart_pca10040_s132;ble_app_uart_pca10040_s132;Application"/>
   <ProjectSessionItem path="ble_app_uart_pca10040_s132;ble_app_uart_pca10040_s132;Application;XeThru"/>
   <ProjectSessionItem path="ble_app_uart_pca10040_s132;ble_app_uart_pca10040_s132;Application;XeThru;hal"/>
-  <ProjectSessionItem path="ble_app_uart_pca10040_s132;ble_app_uart_pca10040_s132;Application;XeThru;include"/>
   <ProjectSessionItem path="ble_app_uart_pca10040_s132;ble_app_uart_pca10040_s132;Application;XeThru;radar_task"/>
   <ProjectSessionItem path="ble_app_uart_pca10040_s132;ble_app_uart_pca10040_s132;Application;XeThru;x4driver"/>
+  <ProjectSessionItem path="ble_app_uart_pca10040_s132;ble_app_uart_pca10040_s132;Board Definition"/>
   <ProjectSessionItem path="ble_app_uart_pca10040_s132;ble_app_uart_pca10040_s132;Board Support"/>
+  <ProjectSessionItem path="ble_app_uart_pca10040_s132;ble_app_uart_pca10040_s132;None"/>
   <ProjectSessionItem path="ble_app_uart_pca10040_s132;ble_app_uart_pca10040_s132;nRF_Drivers"/>
   <ProjectSessionItem path="ble_app_uart_pca10040_s132;ble_app_uart_pca10040_s132;nRF_Libraries"/>
   <ProjectSessionItem path="ble_app_uart_pca10040_s132;ble_app_uart_pca10040_s132;nRF_Log"/>
@@ -55,8 +56,9 @@
  </TraceWindow>
  <Watch1>
   <Watches active="1" update="Each Second">
-   <Watchpoint numelements="0" expression="data_frame_bytes" evalMode="1" name="data_frame_bytes" radix="-1" linenumber="72" filename="XeThru/radar/taskRadar.c" list=""/>
-   <Watchpoint numelements="0" expression="data_frame_normolized" evalMode="1" name="data_frame_normolized" radix="16" linenumber="98" filename="XeThru/radar/taskRadar.c" list=""/>
+   <Watchpoint numelements="0" expression="data_frame_bytes" evalMode="1" name="data_frame_bytes" radix="-1" linenumber="73" filename="XeThru/radar/taskRadar.c" list=""/>
+   <Watchpoint numelements="0" expression="data_frame_normolized" evalMode="1" name="data_frame_normolized" radix="16" linenumber="99" filename="XeThru/radar/taskRadar.c" list=""/>
+   <Watchpoint numelements="0" expression="rx_end_count" evalMode="0" name="rx_end_count" radix="16" linenumber="147" filename="XeThru/hal/radar_hal.c" list=""/>
   </Watches>
  </Watch1>
  <Watch2>
@@ -69,8 +71,14 @@
   <Watches active="0" update="Never"/>
  </Watch4>
  <Files>
-  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="108" useTextEdit="1" useBinaryEdit="0" left="0" path="XeThru/radar/taskRadar.c" selected="1" top="101" codecName="Default"/>
-  <SessionOpenFile windowGroup="DockEditLeft" x="5" y="692" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../main.c" selected="0" top="678" codecName=""/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="47" y="75" useTextEdit="1" useBinaryEdit="0" left="0" path="XeThru/radar/taskRadar.c" selected="0" top="8" codecName="Default"/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="3" y="716" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../main.c" selected="0" top="676" codecName=""/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="57" y="124" useTextEdit="1" useBinaryEdit="0" left="0" path="XeThru/hal/radar_hal.c" selected="1" top="100" codecName="Default"/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="1323" useTextEdit="1" useBinaryEdit="0" left="0" path="XeThru/x4_driver/x4driver.c" selected="0" top="1298" codecName=""/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="23" y="120" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../integration/nrfx/legacy/nrf_drv_spi.c" selected="0" top="91" codecName=""/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="58" y="437" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../modules/nrfx/drivers/src/nrfx_spim.c" selected="0" top="413" codecName=""/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="120" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../integration/nrfx/nrfx_glue.h" selected="0" top="97" codecName=""/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="542" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../integration/nrfx/legacy/nrf_drv_spi.h" selected="0" top="522" codecName="Default"/>
  </Files>
- <ARMCrossStudioWindow activeProject="ble_app_uart_pca10040_s132" fileDialogDefaultFilter="*.c" autoConnectTarget="J-Link" buildConfiguration="Debug" debugSearchFileMap="C:/Users/marius.lind.volstad/Downloads/nRF5_SDK_15.2.0_9412b96/nRF5_SDK_15.2.0_9412b96/modules/nrfx/mdk/ses_startup_nrf52.s&#xa;&#xa;C:/Users/marius.lind.volstad/Downloads/nRF5_SDK_15.2.0_9412b96/nRF5_SDK_15.2.0_9412b96/modules/nrfx/mdk/ses_startup_nrf_common.s&#xa;" fileDialogInitialDirectory="C:/Users/charlie.shao/Documents/XeThru/repo1.novelda.locol/nrf52_X4driver/integration/nrfx/legacy" debugSearchPath="" autoConnectCapabilities="3711"/>
+ <ARMCrossStudioWindow activeProject="ble_app_uart_pca10040_s132" fileDialogDefaultFilter="*.c" autoConnectTarget="J-Link" buildConfiguration="Debug" debugSearchFileMap="C:/Users/marius.lind.volstad/Downloads/nRF5_SDK_15.2.0_9412b96/nRF5_SDK_15.2.0_9412b96/modules/nrfx/mdk/ses_startup_nrf52.s&#xa;&#xa;C:/Users/marius.lind.volstad/Downloads/nRF5_SDK_15.2.0_9412b96/nRF5_SDK_15.2.0_9412b96/modules/nrfx/mdk/ses_startup_nrf_common.s&#xa;" fileDialogInitialDirectory="C:/Users/charlie.shao/Documents/XeThru/repo1.novelda.locol/nrf52_X4driver/modules/nrfx/drivers/src" debugSearchPath="" autoConnectCapabilities="3711"/>
 </session>

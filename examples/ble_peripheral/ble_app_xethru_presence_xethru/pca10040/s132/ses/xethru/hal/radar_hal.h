@@ -81,6 +81,7 @@ uint32_t radar_hal_spi_read(radar_handle_t *, uint8_t* data, uint32_t length);
  */
 uint32_t radar_hal_spi_write_read(radar_handle_t * radar_handle, uint8_t* wdata, uint32_t wlength, uint8_t* rdata, uint32_t rlength);
 
+
 #ifdef __cplusplus
 }
 #endif

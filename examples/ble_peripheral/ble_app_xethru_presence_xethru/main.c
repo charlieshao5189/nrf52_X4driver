@@ -479,15 +479,15 @@ static uint8_t m_rx_buf[sizeof(TEST_STRING) + 1]; /**< RX buffer. */
 static uint8_t register_read_buffer = 0x55;
 static const uint8_t m_length = sizeof(m_tx_buf); /**< Transfer length. */
 
-void spi_event_handler(nrf_drv_spi_evt_t const *p_event,
-    void *p_context) {
-  spi_xfer_done = true;
-  NRF_LOG_INFO("Transfer completed.");
-  if (register_read_buffer != 0x55) {
-    NRF_LOG_INFO(" Received:");
-    NRF_LOG_HEXDUMP_INFO(&register_read_buffer, 1);
-  }
-}
+//void spi_event_handler(nrf_drv_spi_evt_t const *p_event,
+//    void *p_context) {
+//  spi_xfer_done = true;
+//  NRF_LOG_INFO("Transfer completed.");
+//  if (register_read_buffer != 0x55) {
+//    NRF_LOG_INFO(" Received:");
+//    NRF_LOG_HEXDUMP_INFO(&register_read_buffer, 1);
+//  }
+//}
 
 static void spi_init(void) {
   nrf_drv_spi_config_t spi_config = NRF_DRV_SPI_DEFAULT_CONFIG;
@@ -497,8 +497,8 @@ static void spi_init(void) {
   spi_config.sck_pin = 25;
   spi_config.frequency = NRF_SPIM_FREQ_500K;
 
-  APP_ERROR_CHECK(nrf_drv_spi_init(&spi, &spi_config, spi_event_handler, NULL));
-
+  //APP_ERROR_CHECK(nrf_drv_spi_init(&spi, &spi_config, spi_event_handler, NULL));
+APP_ERROR_CHECK(nrf_drv_spi_init(&spi, &spi_config, NULL, NULL));
 //  nrf_gpio_cfg_output(X4_ENABLE_PIN);
 //  nrf_gpio_cfg_input(X4_GPIO_INT, GPIO_PIN_CNF_PULL_Pulldown);
 //  nrf_gpio_pin_set(X4_ENABLE_PIN);
@@ -689,9 +689,13 @@ static void advertising_start(void) {
 int main(void) {
   bool erase_bonds;
   // Initialize.
-  uart_init();
-  taskRadar();
   log_init();
+  NRF_LOG_INFO("Debug logging over RTT started.");
+  uart_init();
+  printf("\r\nUART started!\r\n");
+
+  taskRadar();
+////////////////////////////////////stop here
   timers_init();
   buttons_leds_init(&erase_bonds);
   power_management_init();
@@ -707,7 +711,6 @@ int main(void) {
   NRF_LOG_INFO("Debug logging for UART over RTT started.");
   advertising_start();
   
-
   // Enter main loop.
   for (;;) {
     idle_state_handle();
