@@ -22,6 +22,11 @@ nrf_ppi_channel_t ppi_channel_spi;
 nrf_ppi_channel_t ppi_channel_timer;
 static volatile bool burst_completed = false;
 static volatile bool spi_xfer_done = false;  
+static volatile bool last_spi_read = false; 
+
+uint8_t spi_rx_end_number;
+volatile uint8_t spi_rx_end_count;
+
 
  nrf_drv_spi_config_t spi_config = NRF_DRV_SPI_DEFAULT_CONFIG;
 
@@ -31,7 +36,19 @@ static void timer_event_handler(nrf_timer_event_t event_type, void* p_context)
     switch (event_type)
     {
         case NRF_TIMER_EVENT_COMPARE0:
-            burst_transfer_disable();
+            if(last_spi_read == false){
+            // Configure short between spi end event and spi start task
+             NRF_SPIM0->RXD.MAXCNT = 172;
+             nrf_spim_shorts_disable(spi_instance.u.spim.p_reg, NRF_SPIM_SHORT_END_START_MASK);
+             // Compare event after rx_end_count transmissions
+             nrf_drv_timer_extended_compare(&timer_instance, NRF_TIMER_CC_CHANNEL0, 1, NRF_TIMER_SHORT_COMPARE0_CLEAR_MASK, true);
+             
+              //burst_setup(1);
+              //burst_transfer_enable();
+              last_spi_read = true;
+            }else{
+              burst_transfer_disable();
+            }
             break;
 
         default:
@@ -64,7 +81,7 @@ void burst_setup(uint8_t rx_end_count) {
   APP_ERROR_CHECK(err_code);
 
   // Compare event after rx_end_count transmissions
-  nrf_drv_timer_extended_compare(&timer_instance, NRF_TIMER_CC_CHANNEL0, rx_end_count, NRF_TIMER_SHORT_COMPARE0_STOP_MASK, true);
+  nrf_drv_timer_extended_compare(&timer_instance, NRF_TIMER_CC_CHANNEL0, rx_end_count, NRF_TIMER_SHORT_COMPARE0_CLEAR_MASK, true);
   //nrf_drv_timer_extended_compare(&timer_instance, NRF_TIMER_CC_CHANNEL0, rx_end_count, NRF_TIMER_SHORT_COMPARE0_CLEAR_MASK, true);
   
   timer_count_task = nrf_drv_timer_task_address_get(&timer_instance, NRF_TIMER_TASK_COUNT);
@@ -94,6 +111,7 @@ static void burst_transfer_enable() {
   ret_code_t err_code;
 
   burst_completed = false;
+  last_spi_read = false; 
 
   err_code = nrf_drv_ppi_channel_enable(ppi_channel_spi);
   APP_ERROR_CHECK(err_code);
@@ -107,9 +125,8 @@ static void burst_transfer_enable() {
 
 void burst_transfer_disable() {
   ret_code_t err_code;
-  // Configure short between spi end event and spi start task
-  nrf_spim_shorts_disable(spi_instance.u.spim.p_reg, NRF_SPIM_SHORT_END_START_MASK);
 
+  nrf_gpio_pin_set(X4_SPI_SS);
   err_code = nrf_drv_ppi_channel_disable(ppi_channel_spi);
   APP_ERROR_CHECK(err_code);
   err_code = nrf_drv_ppi_channel_disable(ppi_channel_timer);
@@ -117,9 +134,6 @@ void burst_transfer_disable() {
 
   nrf_drv_timer_disable(&timer_instance);
   nrfx_timer_uninit(&timer_instance);  
-
-  nrf_gpio_pin_set(X4_SPI_SS);
-  
   err_code = nrf_drv_ppi_channel_free(ppi_channel_spi);
   APP_ERROR_CHECK(err_code);
   err_code = nrf_drv_ppi_channel_free(ppi_channel_timer);
@@ -128,9 +142,11 @@ void burst_transfer_disable() {
   burst_completed = true;
 }
 
+
+
 uint8_t burst_read(uint8_t *wdata, uint32_t wlength, uint8_t *rdata, uint32_t rlength){
   ret_code_t err_code;
-  uint8_t rx_end_count = (rlength+wlength-1)/255 + 1;
+  uint8_t rx_end_count = (rlength+wlength-1)/255;
   nrf_drv_spi_xfer_desc_t xfer = NRF_DRV_SPI_XFER_TRX(wdata, wlength, rdata, 255);
     // Configure short between spi end event and spi start task
   nrf_spim_shorts_enable(spi_instance.u.spim.p_reg, NRF_SPIM_SHORT_END_START_MASK);
@@ -159,7 +175,44 @@ uint8_t burst_read(uint8_t *wdata, uint32_t wlength, uint8_t *rdata, uint32_t rl
   return XT_SUCCESS;
 }
 
+static void general_spi_event_handler(nrf_drv_spi_evt_t const *p_event) {
+  if (p_event->type == NRF_DRV_SPI_EVENT_DONE) {
+     spi_rx_end_count ++;
+     //NRF_LOG_INFO("spi_rx_end_count:%d",spi_rx_end_count);
+     if(spi_rx_end_count >= spi_rx_end_number){
+       nrf_spim_task_trigger(spi_instance.u.spim.p_reg, NRF_SPIM_TASK_STOP);  
+       nrf_gpio_pin_set(X4_SPI_SS);
+       burst_completed = true;
+     }
+  } else{
+    NRF_LOG_INFO("Wrong Event\n");
+    // Something is wrong
+  }
+}
 
+static uint8_t general_spi_write_read(uint8_t *wdata, uint32_t wlength, uint8_t *rdata, uint32_t rlength){
+   ret_code_t err_code;
+   spi_rx_end_number = (rlength+wlength-1)/255 + 1;
+   nrf_drv_spi_xfer_desc_t xfer = NRF_DRV_SPI_XFER_TRX(wdata, wlength, rdata, 255);
+   if(spi_rx_end_number <= 2){
+    xfer.rx_length = rlength+wlength ;
+   }
+   uint32_t flags = NRF_DRV_SPI_FLAG_HOLD_XFER |
+                   NRF_DRV_SPI_FLAG_REPEATED_XFER |
+                   NRF_DRV_SPI_FLAG_RX_POSTINC;
+
+   err_code = nrf_drv_spi_xfer(&spi_instance, &xfer, flags);
+   APP_ERROR_CHECK(err_code);
+
+   burst_completed = false;
+   spi_rx_end_count=0;
+   nrf_gpio_pin_clear(X4_SPI_SS);
+   nrf_spim_task_trigger(spi_instance.u.spim.p_reg, NRF_SPIM_TASK_START);
+   while (!burst_completed) {
+    __WFE();
+  }
+  burst_completed = false;
+}
 
 uint8_t spi_init(void) {
   ret_code_t err_code;
@@ -177,8 +230,8 @@ uint8_t spi_init(void) {
   spi_config.irq_priority = 2;
   spi_config.frequency = SPIM_FREQUENCY_FREQUENCY_M2;
 
-  //err_code = nrf_drv_spi_init(&spi_instance, &spi_config, spi_event_handler,NULL);
-  err_code = nrf_drv_spi_init(&spi_instance, &spi_config, NULL,NULL);
+  err_code = nrf_drv_spi_init(&spi_instance, &spi_config, spi_event_handler,NULL);
+  //err_code = nrf_drv_spi_init(&spi_instance, &spi_config, general_spi_event_handler,NULL);
   APP_ERROR_CHECK(err_code);
   //NRF_LOG_INFO("SPI0 Master initialised.\r\n");
 
@@ -194,6 +247,8 @@ uint8_t spi_init(void) {
 
   return XT_SUCCESS;
 }
+
+
 
 /**************SPI burst*********end*****************/
 
@@ -220,7 +275,7 @@ int radar_hal_init(radar_handle_t **radar_handle, void *instance_memory) {
   //  spi_config.irq_priority = 2;
   //  spi_config.frequency = SPIM_FREQUENCY_FREQUENCY_M2;
   //
-  //  //err_code = nrf_drv_spi_init(&spi_instance, &spi_config, spi_event_handler, NULL);
+  //  err_code = nrf_drv_spi_init(&spi_instance, &spi_config, spi_event_handler, NULL);
   //  err_code = nrf_drv_spi_init(&spi_instance, &spi_config, NULL, NULL);
 
   spi_init();
@@ -258,8 +313,10 @@ uint32_t radar_hal_spi_write_read(radar_handle_t *radar_handle, uint8_t *wdata, 
     return XT_ERROR;
   }
 
+  //general_spi_write_read(wdata,wlength,rdata-1,rlength+wlength);
+
   if (rlength + wlength <= 255) {
-      nrf_drv_spi_uninit(&spi_instance); 
+  nrf_drv_spi_uninit(&spi_instance); 
   err_code = nrf_drv_spi_init(&spi_instance, &spi_config, NULL,NULL);
   APP_ERROR_CHECK(err_code);
 
@@ -290,7 +347,8 @@ uint32_t radar_hal_spi_write(radar_handle_t *radar_handle, uint8_t *data, uint32
     return XT_ERROR;
   }
 
-      nrf_drv_spi_uninit(&spi_instance); 
+//general_spi_write_read(data, length, NULL, 0);
+  nrf_drv_spi_uninit(&spi_instance); 
   err_code = nrf_drv_spi_init(&spi_instance, &spi_config, NULL,NULL);
   APP_ERROR_CHECK(err_code);
   nrf_gpio_pin_clear(X4_SPI_SS);

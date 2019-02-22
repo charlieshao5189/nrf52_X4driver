@@ -2063,9 +2063,9 @@ int x4driver_init(X4Driver_t* x4driver)
     uint8_t force_zero = 0x00;
     //while(1){
       x4driver_get_spi_register(x4driver, ADDR_SPI_FORCE_ONE_R, &force_one);
-      //NRF_LOG_INFO("FORCEONE = %X \n", force_one);
+      NRF_LOG_INFO("FORCEONE = %X \n", force_one);
       x4driver_get_spi_register(x4driver, ADDR_SPI_FORCE_ZERO_R, &force_zero);
-      //NRF_LOG_INFO("FORCEZERO = %X \n", force_zero);
+      NRF_LOG_INFO("FORCEZERO = %X \n", force_zero);
     //}
 
     if ((force_one != 0xff) || (force_zero != 0x00))
