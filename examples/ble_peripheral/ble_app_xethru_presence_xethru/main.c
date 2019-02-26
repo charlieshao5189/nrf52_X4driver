@@ -687,6 +687,7 @@ static void advertising_start(void) {
 /**@brief Application main function.
  */
 int main(void) {
+  nrfx_gpiote_init();
   bool erase_bonds;
   // Initialize.
   log_init();

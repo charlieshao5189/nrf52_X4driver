@@ -51,7 +51,7 @@ static uint32_t fdata_count = 0;
 static uint8_t down_conversion_enabled = 0;
 static volatile bool first_frame = true;
 static uint32_t frame_counter = 0;
-static uint8_t *data_frame_bytes;
+static uint8_t data_frame_bytes[6000];
 static float32_t *data_frame_normolized;
 
 
@@ -68,23 +68,23 @@ void x4driver_data_ready(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t action)
     if (down_conversion_enabled == 1) {
       fdata_count = bin_count * 2;
     }
-    data_frame_bytes = (uint8_t *) malloc(x4driver->frame_read_size);
+    //data_frame_bytes = (uint8_t *) malloc(x4driver->frame_read_size);
   }
   status = x4driver_read_frame_bytes(x4driver, &frame_counter, data_frame_bytes, x4driver->frame_read_size);
 
   if (XEP_ERROR_X4DRIVER_OK == status) {
-    NRF_LOG_INFO("\n x4 frame data ready! \n");
+    NRF_LOG_INFO("\n x4 frame data ready! \r\n");
 
   } else {
-    NRF_LOG_INFO("fail to get x4 frame data errorcode:%d! \n", status);
+    NRF_LOG_INFO("fail to get x4 frame data errorcode:%d! \r\n", status);
   }
 
-  printf("Size:%d,New Frame Data Normolized(%d){\n", x4driver->frame_read_size, frame_counter);
+  printf("Size:%d,New Frame Data Normalized(%d){\r\n", x4driver->frame_read_size, frame_counter);
   for (uint32_t i = 0; i < x4driver->frame_read_size; i=i+1) {
     //printf("[%d]:%X, ",i, data_frame_bytes[i]);
     printf("%X, ",data_frame_bytes[i]);
   }
-  printf("}\n");
+  printf("}\r\n");
 
 //    if (true == first_frame) {
 //    first_frame = false;
@@ -160,7 +160,6 @@ void x4driver_enable_ISR(void *user_reference, uint32_t enable) {
   ret_code_t err_code;
 
   if (enable == 1) {
-    err_code = nrf_drv_gpiote_init();
     APP_ERROR_CHECK(err_code);
 
     nrf_drv_gpiote_out_config_t out_config = GPIOTE_CONFIG_OUT_SIMPLE(false);
@@ -190,7 +189,7 @@ uint32_t task_radar_init(X4Driver_t **x4driver) {
   if (status == XT_SUCCESS) {
     printf("radar_hal_init success\n");
   } else {
-    NRF_LOG_INFO("radar_hal_init unknow situcation\n");
+    NRF_LOG_INFO("radar_hal_init unknown situation\n");
   }
 #endif // DEBUG
 
@@ -235,7 +234,7 @@ uint32_t task_radar_init(X4Driver_t **x4driver) {
   if (status == XEP_ERROR_X4DRIVER_OK) {
     NRF_LOG_INFO("x4driver_create success\n");
   } else {
-    NRF_LOG_INFO("x4driver_create unknow situcation\n");
+    NRF_LOG_INFO("x4driver_create unknown situation\n");
   }
 #endif // DEBUG
 
@@ -243,15 +242,15 @@ uint32_t task_radar_init(X4Driver_t **x4driver) {
   //task_parameters->dispatch = dispatch;
   task_parameters->x4driver = *x4driver;
 
-  task_parameters->x4driver->spi_buffer_size = 192 * 32;
+  task_parameters->x4driver->com_buffer_size = 192 * 32;
   //task_parameters->x4driver->spi_buffer_size = 4609;// baseband 188*2*6= 2256   rf 1536*3= 4608
-  task_parameters->x4driver->spi_buffer = (uint8_t *)malloc(task_parameters->x4driver->spi_buffer_size);
-  if ((((uint32_t)task_parameters->x4driver->spi_buffer) % 32) != 0) {
-    int alignment_diff = 32 - (((uint32_t)task_parameters->x4driver->spi_buffer) % 32);
-    task_parameters->x4driver->spi_buffer += alignment_diff;
-    task_parameters->x4driver->spi_buffer_size -= alignment_diff;
+  task_parameters->x4driver->com_buffer = (uint8_t *)malloc(task_parameters->x4driver->com_buffer_size);
+  if ((((uint32_t)task_parameters->x4driver->com_buffer) % 32) != 0) {
+    int alignment_diff = 32 - (((uint32_t)task_parameters->x4driver->com_buffer) % 32);
+    task_parameters->x4driver->com_buffer += alignment_diff;
+    task_parameters->x4driver->com_buffer_size -= alignment_diff;
   }
-  task_parameters->x4driver->spi_buffer_size -= task_parameters->x4driver->spi_buffer_size % 32;
+  task_parameters->x4driver->com_buffer_size -= task_parameters->x4driver->com_buffer_size % 32;
 
   //    xTaskCreate(task_radar, (const char * const) "Radar", TASK_RADAR_STACK_SIZE, (void*)task_parameters, TASK_RADAR_PRIORITY, &h_task_radar);
   //    x4driver_user_reference->radar_task_handle = h_task_radar;
@@ -275,7 +274,7 @@ int taskRadar(void) {
   } else if (status == XT_ERROR) {
     NRF_LOG_INFO("task_radar_init failure\n");
   } else {
-    NRF_LOG_INFO("task_radar_init unknow situcation\n");
+    NRF_LOG_INFO("task_radar_init unknown situation\n");
   }
 #endif // DEBUG
 
@@ -285,7 +284,7 @@ int taskRadar(void) {
   if (tmp_status == XEP_ERROR_X4DRIVER_OK) {
     NRF_LOG_INFO("x4driver_init success\n");
   } else {
-    NRF_LOG_INFO("x4driver_init unknow situcation\n");
+    NRF_LOG_INFO("x4driver_init unknown situation\n");
   }
 #endif // DEBUG
 
@@ -294,7 +293,7 @@ int taskRadar(void) {
   if (status == XEP_ERROR_X4DRIVER_OK) {
     NRF_LOG_INFO("x4driver_set_sweep_trigger_control success\n");
   } else {
-    NRF_LOG_INFO("x4driver_set_sweep_trigger_control unknow situcation\n");
+    NRF_LOG_INFO("x4driver_set_sweep_trigger_control unknown situation\n");
   }
 #endif // DEBUG
 

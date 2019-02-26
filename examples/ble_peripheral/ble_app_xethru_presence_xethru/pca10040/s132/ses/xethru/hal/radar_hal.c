@@ -7,6 +7,7 @@
 #include <nrf_drv_ppi.h>
 #include <nrf_drv_spi.h>
 #include <nrf_gpio.h>
+#include <nrfx_gpiote.h>
 #include <sdk_config.h>
 //#define NRF_LOG_MODULE_NAME "APP"
 #include <nrf_log.h>
@@ -31,31 +32,6 @@ volatile uint8_t spi_rx_end_count;
  nrf_drv_spi_config_t spi_config = NRF_DRV_SPI_DEFAULT_CONFIG;
 
 
-static void timer_event_handler(nrf_timer_event_t event_type, void* p_context)
-{
-    switch (event_type)
-    {
-        case NRF_TIMER_EVENT_COMPARE0:
-            if(last_spi_read == false){
-            // Configure short between spi end event and spi start task
-             nrf_drv_timer_extended_compare(&timer_instance, NRF_TIMER_CC_CHANNEL0, 1, NRF_TIMER_SHORT_COMPARE0_CLEAR_MASK, true);
-             nrf_spim_shorts_disable(spi_instance.u.spim.p_reg, NRF_SPIM_SHORT_END_START_MASK);
-             NRF_SPIM0->RXD.MAXCNT = 172;
-             // Compare event after rx_end_count transmissions
-              //burst_setup(1);
-              //burst_transfer_enable();
-              last_spi_read = true;
-            }else{
-              burst_transfer_disable();
-            }
-            break;
-
-        default:
-            //Do nothing.
-            break;
-    }
-}
-
 static void spi_event_handler(nrf_drv_spi_evt_t const *p_event) {
   if (p_event->type == NRF_DRV_SPI_EVENT_DONE) {
     spi_xfer_done = true;
@@ -65,111 +41,6 @@ static void spi_event_handler(nrf_drv_spi_evt_t const *p_event) {
     NRF_LOG_INFO("Wrong Event\n");
     // Something is wrong
   }
-}
-
-void burst_setup(uint8_t rx_end_count) {
-  uint32_t spi_end_evt;
-  uint32_t timer_count_task;
-  uint32_t timer_cc_event;
-  ret_code_t err_code;
-
-  //Configure timer
-  nrf_drv_timer_config_t timer_cfg = NRF_DRV_TIMER_DEFAULT_CONFIG;
-  timer_cfg.mode = NRF_TIMER_MODE_COUNTER;
-  err_code = nrfx_timer_init(&timer_instance, &timer_cfg, timer_event_handler); 
-  APP_ERROR_CHECK(err_code);
-
-  // Compare event after rx_end_count transmissions
-  nrf_drv_timer_extended_compare(&timer_instance, NRF_TIMER_CC_CHANNEL0, rx_end_count, NRF_TIMER_SHORT_COMPARE0_CLEAR_MASK, true);
-  //nrf_drv_timer_extended_compare(&timer_instance, NRF_TIMER_CC_CHANNEL0, rx_end_count, NRF_TIMER_SHORT_COMPARE0_CLEAR_MASK, true);
-  
-  timer_count_task = nrf_drv_timer_task_address_get(&timer_instance, NRF_TIMER_TASK_COUNT);
-  timer_cc_event = nrf_drv_timer_event_address_get(&timer_instance, NRF_TIMER_EVENT_COMPARE0);
-  //NRF_LOG_INFO("timer configured\n");
-
-  // allocate PPI channels for hardware
-  err_code = nrf_drv_ppi_channel_alloc(&ppi_channel_spi);
-  APP_ERROR_CHECK(err_code);
-  err_code = nrf_drv_ppi_channel_alloc(&ppi_channel_timer);
-  APP_ERROR_CHECK(err_code);
-  //NRF_LOG_INFO("ppi allocated\n");
-
-  spi_end_evt = nrf_drv_spi_end_event_get(&spi_instance);
-
-  // Configure the PPI to count the trasnsactions on the TIMER
-  err_code = nrf_drv_ppi_channel_assign(ppi_channel_spi, spi_end_evt, timer_count_task);
-  APP_ERROR_CHECK(err_code);
-
-  // Configure another PPI to stop the SPI when 4 transactions have been completed
-  err_code = nrf_drv_ppi_channel_assign(ppi_channel_timer, timer_cc_event, NRF_SPIM_TASK_STOP);
-  APP_ERROR_CHECK(err_code);
-  //NRF_LOG_INFO("ppi configured\n");
-}
-
-static void burst_transfer_enable() {
-  ret_code_t err_code;
-
-  burst_completed = false;
-  last_spi_read = false; 
-
-  err_code = nrf_drv_ppi_channel_enable(ppi_channel_spi);
-  APP_ERROR_CHECK(err_code);
-  err_code = nrf_drv_ppi_channel_enable(ppi_channel_timer);
-  APP_ERROR_CHECK(err_code);
-
-  nrf_drv_timer_enable(&timer_instance);
-
-  nrf_gpio_pin_clear(X4_SPI_SS);
-}
-
-void burst_transfer_disable() {
-  ret_code_t err_code;
-
-  nrf_gpio_pin_set(X4_SPI_SS);
-  err_code = nrf_drv_ppi_channel_disable(ppi_channel_spi);
-  APP_ERROR_CHECK(err_code);
-  err_code = nrf_drv_ppi_channel_disable(ppi_channel_timer);
-  APP_ERROR_CHECK(err_code);
-
-  nrf_drv_timer_disable(&timer_instance);
-  nrfx_timer_uninit(&timer_instance);  
-  err_code = nrf_drv_ppi_channel_free(ppi_channel_spi);
-  APP_ERROR_CHECK(err_code);
-  err_code = nrf_drv_ppi_channel_free(ppi_channel_timer);
-  APP_ERROR_CHECK(err_code);
-
-  burst_completed = true;
-}
-
-
-uint8_t burst_read(uint8_t *wdata, uint32_t wlength, uint8_t *rdata, uint32_t rlength){
-  ret_code_t err_code;
-  uint8_t rx_end_count = (rlength+wlength-1)/255;
-  nrf_drv_spi_xfer_desc_t xfer = NRF_DRV_SPI_XFER_TRX(wdata, wlength, rdata, 255);
-    // Configure short between spi end event and spi start task
-  nrf_spim_shorts_enable(spi_instance.u.spim.p_reg, NRF_SPIM_SHORT_END_START_MASK);
-  uint32_t flags = NRF_DRV_SPI_FLAG_HOLD_XFER |
-                   NRF_DRV_SPI_FLAG_RX_POSTINC |
-                   NRF_DRV_SPI_FLAG_NO_XFER_EVT_HANDLER;
-  nrf_drv_spi_uninit(&spi_instance); 
-  err_code = nrf_drv_spi_init(&spi_instance, &spi_config, spi_event_handler,NULL);
-  APP_ERROR_CHECK(err_code);
-  err_code = nrf_drv_spi_xfer(&spi_instance, &xfer, flags);
-  APP_ERROR_CHECK(err_code);
-
-  burst_setup(rx_end_count);
-  
-  burst_transfer_enable();
-
-  nrf_spim_task_trigger(spi_instance.u.spim.p_reg, NRF_SPIM_TASK_START);
-
-  while (!burst_completed) {
-    __WFE();
-  }
-  spi_xfer_done = false;
-  burst_completed = false;
-
-  return XT_SUCCESS;
 }
 
 static volatile int remaining_to_transfer = 0;
@@ -183,8 +54,8 @@ static void general_spi_event_handler(nrf_drv_spi_evt_t const *p_event) {
         int current_transfer = remaining_to_transfer;
         if (current_transfer > 255)
             current_transfer = 255;
+        nrf_drv_spi_xfer_desc_t xfer = NRF_DRV_SPI_XFER_TRX(NULL, 0, read_ptr, (uint8_t)current_transfer);
         read_ptr += current_transfer;
-        nrf_drv_spi_xfer_desc_t xfer = NRF_DRV_SPI_XFER_TRX(NULL, 0, read_ptr, current_transfer);
         remaining_to_transfer -= current_transfer;
         nrf_drv_spi_xfer(&spi_instance, &xfer, NULL);
      } else {  
@@ -196,18 +67,47 @@ static void general_spi_event_handler(nrf_drv_spi_evt_t const *p_event) {
     // Something is wrong
   }
 }
+
+/**
+ * @brief Work-around for transmitting 1 byte with SPIM.
+ */
+void setup_workaround_for_ftpan_58(bool enable) // uint32_t ppi_channel)
+{
+  static nrf_ppi_channel_t spi_workaround_ppi_channel;
+  if (enable)
+  {
+    nrfx_ppi_channel_alloc(&spi_workaround_ppi_channel);
+    nrfx_gpiote_in_config_t in_config = NRFX_GPIOTE_RAW_CONFIG_IN_SENSE_TOGGLE(true);
+    nrfx_gpiote_in_init(NRF_SPIM0->PSEL.SCK,
+                               &in_config,
+                               NULL);
+    nrfx_gpiote_in_event_enable(NRF_SPIM0->PSEL.SCK, false);
+
+    // Stop the spim instance when SCK toggles.
+    nrfx_ppi_channel_assign(spi_workaround_ppi_channel, nrfx_gpiote_in_event_addr_get(NRF_SPIM0->PSEL.SCK), (uint32_t)&NRF_SPIM0->TASKS_STOP);
+    nrf_ppi_channel_enable(spi_workaround_ppi_channel);
+
+    // The spim instance cannot be stopped mid-byte, so it will finish
+    // transmitting the first byte and then stop. Effectively ensuring
+    // that only 1 byte is transmitted.
+    } else
+    {
+      nrf_ppi_channel_disable(spi_workaround_ppi_channel);
+      nrfx_ppi_channel_free(spi_workaround_ppi_channel);
+      nrfx_gpiote_in_uninit(NRF_SPIM0->PSEL.SCK);
+    }
+}
+
 static uint8_t general_spi_write_read(uint8_t *wdata, uint32_t wlength, uint8_t *rdata, uint32_t rlength){
    ret_code_t err_code;
 
     remaining_to_transfer =  rlength;
-
     read_ptr = rdata;
-    int current_transfer = remaining_to_transfer;
-    if (current_transfer > 255)
-        current_transfer = 255;
 
-   nrf_drv_spi_xfer_desc_t xfer = NRF_DRV_SPI_XFER_TRX(wdata, wlength, read_ptr, current_transfer);
-   remaining_to_transfer -= current_transfer;
+    if (rlength == 1)
+      setup_workaround_for_ftpan_58(true);
+
+   nrf_drv_spi_xfer_desc_t xfer = NRF_DRV_SPI_XFER_TRX(wdata, wlength, NULL, 0);
 
    burst_completed = false;
    nrf_gpio_pin_clear(X4_SPI_SS);
@@ -216,6 +116,9 @@ static uint8_t general_spi_write_read(uint8_t *wdata, uint32_t wlength, uint8_t 
     __WFE();
   }
   burst_completed = false;
+
+    if (rlength == 1)
+      setup_workaround_for_ftpan_58(false);
 }
 
 uint8_t spi_init(void) {
@@ -258,7 +161,7 @@ uint8_t spi_init(void) {
 
 int radar_hal_init(radar_handle_t **radar_handle, void *instance_memory) {
 
-  uint32_t err_code;
+  uint32_t err_code = NRF_SUCCESS;
   int status = XT_SUCCESS;
   radar_handle_t *radar_handle_local = (radar_handle_t *)instance_memory;
   memset(radar_handle_local, 0, sizeof(radar_handle_t));
@@ -317,23 +220,7 @@ uint32_t radar_hal_spi_write_read(radar_handle_t *radar_handle, uint8_t *wdata, 
     return XT_ERROR;
   }
 
-    general_spi_write_read(wdata,wlength,rdata-1,rlength+wlength);
-
-//  if (rlength + wlength <= 255) {
-//  nrf_drv_spi_uninit(&spi_instance); 
-//  err_code = nrf_drv_spi_init(&spi_instance, &spi_config, NULL,NULL);
-//  APP_ERROR_CHECK(err_code);
-//
-//    uint8_t *temp_buff = calloc(wlength + rlength, sizeof(uint8_t));
-//    nrf_gpio_pin_clear(X4_SPI_SS);
-//    err_code = nrf_drv_spi_transfer(&spi_instance, wdata, wlength, temp_buff, rlength + wlength);
-//    nrf_gpio_pin_set(X4_SPI_SS);
-//    memcpy(rdata, temp_buff + wlength, rlength);
-//    free(temp_buff);
-//
-//  } else {
-//    burst_read(wdata,wlength,rdata-1,rlength+wlength);
-//  }
+  general_spi_write_read(wdata, wlength, rdata, rlength);
 
   if (err_code == XT_SUCCESS) {
     return XT_SUCCESS;
@@ -351,13 +238,7 @@ uint32_t radar_hal_spi_write(radar_handle_t *radar_handle, uint8_t *data, uint32
     return XT_ERROR;
   }
 
-    general_spi_write_read(data, length, NULL, 0);
-//  nrf_drv_spi_uninit(&spi_instance); 
-//  err_code = nrf_drv_spi_init(&spi_instance, &spi_config, NULL,NULL);
-//  APP_ERROR_CHECK(err_code);
-//  nrf_gpio_pin_clear(X4_SPI_SS);
-//  err_code = nrf_drv_spi_transfer(&spi_instance, data, length, NULL, 0);
-//  nrf_gpio_pin_set(X4_SPI_SS);
+  general_spi_write_read(data, length, NULL, 0);
 
   if (err_code == XT_SUCCESS) {
     return XT_SUCCESS;

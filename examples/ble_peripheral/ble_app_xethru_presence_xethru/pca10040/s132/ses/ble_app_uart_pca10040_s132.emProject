@@ -145,7 +145,10 @@
       <file file_name="../../../../../../components/softdevice/common/nrf_sdh_ble.c" />
       <file file_name="../../../../../../components/softdevice/common/nrf_sdh_soc.c" />
     </folder>
-    <configuration Name="Debug" linker_printf_fp_enabled="Float" />
+    <configuration
+      Name="Debug"
+      c_preprocessor_definitions="USE_SPI"
+      linker_printf_fp_enabled="Float" />
   </project>
   <configuration
     Name="Release"
