@@ -38,11 +38,10 @@ static void timer_event_handler(nrf_timer_event_t event_type, void* p_context)
         case NRF_TIMER_EVENT_COMPARE0:
             if(last_spi_read == false){
             // Configure short between spi end event and spi start task
-             NRF_SPIM0->RXD.MAXCNT = 172;
-             nrf_spim_shorts_disable(spi_instance.u.spim.p_reg, NRF_SPIM_SHORT_END_START_MASK);
-             // Compare event after rx_end_count transmissions
              nrf_drv_timer_extended_compare(&timer_instance, NRF_TIMER_CC_CHANNEL0, 1, NRF_TIMER_SHORT_COMPARE0_CLEAR_MASK, true);
-             
+             nrf_spim_shorts_disable(spi_instance.u.spim.p_reg, NRF_SPIM_SHORT_END_START_MASK);
+             NRF_SPIM0->RXD.MAXCNT = 172;
+             // Compare event after rx_end_count transmissions
               //burst_setup(1);
               //burst_transfer_enable();
               last_spi_read = true;
@@ -143,7 +142,6 @@ void burst_transfer_disable() {
 }
 
 
-
 uint8_t burst_read(uint8_t *wdata, uint32_t wlength, uint8_t *rdata, uint32_t rlength){
   ret_code_t err_code;
   uint8_t rx_end_count = (rlength+wlength-1)/255;
@@ -151,7 +149,6 @@ uint8_t burst_read(uint8_t *wdata, uint32_t wlength, uint8_t *rdata, uint32_t rl
     // Configure short between spi end event and spi start task
   nrf_spim_shorts_enable(spi_instance.u.spim.p_reg, NRF_SPIM_SHORT_END_START_MASK);
   uint32_t flags = NRF_DRV_SPI_FLAG_HOLD_XFER |
-                   NRF_DRV_SPI_FLAG_REPEATED_XFER |
                    NRF_DRV_SPI_FLAG_RX_POSTINC |
                    NRF_DRV_SPI_FLAG_NO_XFER_EVT_HANDLER;
   nrf_drv_spi_uninit(&spi_instance); 
@@ -175,12 +172,22 @@ uint8_t burst_read(uint8_t *wdata, uint32_t wlength, uint8_t *rdata, uint32_t rl
   return XT_SUCCESS;
 }
 
+static volatile int remaining_to_transfer = 0;
+static volatile uint8_t* read_ptr = NULL;
+
 static void general_spi_event_handler(nrf_drv_spi_evt_t const *p_event) {
   if (p_event->type == NRF_DRV_SPI_EVENT_DONE) {
-     spi_rx_end_count ++;
      //NRF_LOG_INFO("spi_rx_end_count:%d",spi_rx_end_count);
-     if(spi_rx_end_count >= spi_rx_end_number){
-       nrf_spim_task_trigger(spi_instance.u.spim.p_reg, NRF_SPIM_TASK_STOP);  
+     if (remaining_to_transfer > 0)
+     {
+        int current_transfer = remaining_to_transfer;
+        if (current_transfer > 255)
+            current_transfer = 255;
+        read_ptr += current_transfer;
+        nrf_drv_spi_xfer_desc_t xfer = NRF_DRV_SPI_XFER_TRX(NULL, 0, read_ptr, current_transfer);
+        remaining_to_transfer -= current_transfer;
+        nrf_drv_spi_xfer(&spi_instance, &xfer, NULL);
+     } else {  
        nrf_gpio_pin_set(X4_SPI_SS);
        burst_completed = true;
      }
@@ -189,25 +196,22 @@ static void general_spi_event_handler(nrf_drv_spi_evt_t const *p_event) {
     // Something is wrong
   }
 }
-
 static uint8_t general_spi_write_read(uint8_t *wdata, uint32_t wlength, uint8_t *rdata, uint32_t rlength){
    ret_code_t err_code;
-   spi_rx_end_number = (rlength+wlength-1)/255 + 1;
-   nrf_drv_spi_xfer_desc_t xfer = NRF_DRV_SPI_XFER_TRX(wdata, wlength, rdata, 255);
-   if(spi_rx_end_number <= 2){
-    xfer.rx_length = rlength+wlength ;
-   }
-   uint32_t flags = NRF_DRV_SPI_FLAG_HOLD_XFER |
-                   NRF_DRV_SPI_FLAG_REPEATED_XFER |
-                   NRF_DRV_SPI_FLAG_RX_POSTINC;
 
-   err_code = nrf_drv_spi_xfer(&spi_instance, &xfer, flags);
-   APP_ERROR_CHECK(err_code);
+    remaining_to_transfer =  rlength;
+
+    read_ptr = rdata;
+    int current_transfer = remaining_to_transfer;
+    if (current_transfer > 255)
+        current_transfer = 255;
+
+   nrf_drv_spi_xfer_desc_t xfer = NRF_DRV_SPI_XFER_TRX(wdata, wlength, read_ptr, current_transfer);
+   remaining_to_transfer -= current_transfer;
 
    burst_completed = false;
-   spi_rx_end_count=0;
    nrf_gpio_pin_clear(X4_SPI_SS);
-   nrf_spim_task_trigger(spi_instance.u.spim.p_reg, NRF_SPIM_TASK_START);
+   nrf_drv_spi_xfer(&spi_instance, &xfer, NULL);
    while (!burst_completed) {
     __WFE();
   }
@@ -230,8 +234,8 @@ uint8_t spi_init(void) {
   spi_config.irq_priority = 2;
   spi_config.frequency = SPIM_FREQUENCY_FREQUENCY_M2;
 
-  err_code = nrf_drv_spi_init(&spi_instance, &spi_config, spi_event_handler,NULL);
-  //err_code = nrf_drv_spi_init(&spi_instance, &spi_config, general_spi_event_handler,NULL);
+  //err_code = nrf_drv_spi_init(&spi_instance, &spi_config, spi_event_handler,NULL);
+  err_code = nrf_drv_spi_init(&spi_instance, &spi_config, general_spi_event_handler,NULL);
   APP_ERROR_CHECK(err_code);
   //NRF_LOG_INFO("SPI0 Master initialised.\r\n");
 
@@ -313,23 +317,23 @@ uint32_t radar_hal_spi_write_read(radar_handle_t *radar_handle, uint8_t *wdata, 
     return XT_ERROR;
   }
 
-  //general_spi_write_read(wdata,wlength,rdata-1,rlength+wlength);
+    general_spi_write_read(wdata,wlength,rdata-1,rlength+wlength);
 
-  if (rlength + wlength <= 255) {
-  nrf_drv_spi_uninit(&spi_instance); 
-  err_code = nrf_drv_spi_init(&spi_instance, &spi_config, NULL,NULL);
-  APP_ERROR_CHECK(err_code);
-
-    uint8_t *temp_buff = calloc(wlength + rlength, sizeof(uint8_t));
-    nrf_gpio_pin_clear(X4_SPI_SS);
-    err_code = nrf_drv_spi_transfer(&spi_instance, wdata, wlength, temp_buff, rlength + wlength);
-    nrf_gpio_pin_set(X4_SPI_SS);
-    memcpy(rdata, temp_buff + wlength, rlength);
-    free(temp_buff);
-
-  } else {
-    burst_read(wdata,wlength,rdata-1,rlength+wlength);
-  }
+//  if (rlength + wlength <= 255) {
+//  nrf_drv_spi_uninit(&spi_instance); 
+//  err_code = nrf_drv_spi_init(&spi_instance, &spi_config, NULL,NULL);
+//  APP_ERROR_CHECK(err_code);
+//
+//    uint8_t *temp_buff = calloc(wlength + rlength, sizeof(uint8_t));
+//    nrf_gpio_pin_clear(X4_SPI_SS);
+//    err_code = nrf_drv_spi_transfer(&spi_instance, wdata, wlength, temp_buff, rlength + wlength);
+//    nrf_gpio_pin_set(X4_SPI_SS);
+//    memcpy(rdata, temp_buff + wlength, rlength);
+//    free(temp_buff);
+//
+//  } else {
+//    burst_read(wdata,wlength,rdata-1,rlength+wlength);
+//  }
 
   if (err_code == XT_SUCCESS) {
     return XT_SUCCESS;
@@ -347,13 +351,13 @@ uint32_t radar_hal_spi_write(radar_handle_t *radar_handle, uint8_t *data, uint32
     return XT_ERROR;
   }
 
-//general_spi_write_read(data, length, NULL, 0);
-  nrf_drv_spi_uninit(&spi_instance); 
-  err_code = nrf_drv_spi_init(&spi_instance, &spi_config, NULL,NULL);
-  APP_ERROR_CHECK(err_code);
-  nrf_gpio_pin_clear(X4_SPI_SS);
-  err_code = nrf_drv_spi_transfer(&spi_instance, data, length, NULL, 0);
-  nrf_gpio_pin_set(X4_SPI_SS);
+    general_spi_write_read(data, length, NULL, 0);
+//  nrf_drv_spi_uninit(&spi_instance); 
+//  err_code = nrf_drv_spi_init(&spi_instance, &spi_config, NULL,NULL);
+//  APP_ERROR_CHECK(err_code);
+//  nrf_gpio_pin_clear(X4_SPI_SS);
+//  err_code = nrf_drv_spi_transfer(&spi_instance, data, length, NULL, 0);
+//  nrf_gpio_pin_set(X4_SPI_SS);
 
   if (err_code == XT_SUCCESS) {
     return XT_SUCCESS;

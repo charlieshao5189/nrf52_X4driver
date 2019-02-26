@@ -3,13 +3,14 @@
  * @brief Platform independent driver to interface with Xx radar.
  *
  */
-#include <nrf_log.h>
+
 #include <float.h>
 #include <math.h>
 #include <string.h>
 
 #include "x4driver.h"
-#include "xtcompiler.h"
+#include "xep_hal.h"
+
 #include <stdbool.h>
 
 #define START_OF_SRAM_LSB       0x00
@@ -18,6 +19,9 @@
 #define SET_READBACK_MODE       0x02
 #define SET_NORMAL_MODE         0x00
 #define FIFO_NOT_EMPTY_FLAG     0x04
+
+#define START_PIF_SRAM_ADDRESS  0x8000
+#define START_XIF_SRAM_ADDRESS  0x8080
 
 #define TO_CPU_EMPTY_BIT 2
 #define FROM_CPU_VALID_BIT 1
@@ -40,9 +44,17 @@
 #define RESET_COUNTERS_ACTION 0xff
 #define TRX_START_ACTION 0xff
 
-float32_t measured_fps_from_x4_timer_1_34hz[] = {1.004108124950404, 2.0080154538542674, 3.0120231300774165, 4.0152279344517687, 5.0185332341280828, 6.0240460751902258, 7.0273512120334267, 8.0272459942058507, 9.030651670395633, 10.032052556008651, 11.035257553778095, 12.040868513866339, 13.041667871447936, 14.044873167198913, 15.05559814087251, 16.04166747731395, 17.049378771457828, 18.061302650200414, 19.055187571769331, 20.044079750069113, 21.052587257711036, 22.070514637123811, 23.085253644961522, 24.081739235799915, 25.042606665713322, 26.083338304556776, 27.067615812132296, 28.050517228370968, 29.107493859414152, 30.066123144589028, 31.090047130967591, 32.083338705938836, 33.033175120617237, 34.040966553477801};
+
+#define ARR_LEN(A)                      (sizeof(A)/sizeof(A[0]))
+
+const float32_t measured_fps_from_x4_timer_1_34hz[] = {1.004108124950404, 2.0080154538542674, 3.0120231300774165, 4.0152279344517687, 5.0185332341280828, 6.0240460751902258, 7.0273512120334267, 8.0272459942058507, 9.030651670395633, 10.032052556008651, 11.035257553778095, 12.040868513866339, 13.041667871447936, 14.044873167198913, 15.05559814087251, 16.04166747731395, 17.049378771457828, 18.061302650200414, 19.055187571769331, 20.044079750069113, 21.052587257711036, 22.070514637123811, 23.085253644961522, 24.081739235799915, 25.042606665713322, 26.083338304556776, 27.067615812132296, 28.050517228370968, 29.107493859414152, 30.066123144589028, 31.090047130967591, 32.083338705938836, 33.033175120617237, 34.040966553477801};
+
 
 #include "8051_firmware.h"
+
+
+
+
 
 /**
  * @brief x4driver internal buffer struct.
@@ -54,42 +66,60 @@ typedef struct
 } X4DriverBuffer_t;
 
 /**
- * @brief X4 protocol command ids
+ * @brief X4 command type id
  */
 typedef enum {
     PIF_COMMAND            = 0,
     XIF_COMMAND            = 1,
     X4_SW_REGISTER_COMMAND = 2,
     X4_SW_ACTION_COMMAND   = 3,
-} xtx4_command_id_t;
+} xtx4_command_type_id_t;
 
 /**
- * @brief X4 software actions enum.
+ * @brief X4 I2C protocol command ids
  */
 typedef enum {
-    X4_SW_ACTION_START_TIMER  = 0,
-    X4_SW_ACTION_STOP_TIMER   = 1,
-} xtx4_software_action_address_t;
+    X4_I2C_NOP_COMMAND                  = 0x00,
+    X4_I2C_SET_DATA_POINTER_COMMAND     = 0x01,
+    X4_I2C_WRITE_DATA_COMMAND           = 0x02,
+    X4_I2C_SOFT_REBOOT_COMMAND          = 0x03,
+
+    X4_I2C_SW_REGISTER_COMMAND          = 0x10,
+    X4_I2C_ACTION_COMMAND               = 0x11,
+    X4_I2C_SET_I2C_MODE_COMMAND         = 0x12
+
+
+} xtx4_i2c_command_id_t;
+
+
 
 
 /**
  * @brief X4 software register enum.
  */
 typedef enum {
-    X4_SW_REGISTER_FPS_LSB_ADDR            = 0,
-    X4_SW_REGISTER_FPS_MSB_ADDR            = 1,
-    X4_SW_FRAME_COUNTER_RESET_VALUE_1_ADDR = 2,
-    X4_SW_FRAME_COUNTER_RESET_VALUE_2_ADDR = 3,
-    X4_SW_FRAME_COUNTER_RESET_VALUE_3_ADDR = 4,
-    X4_SW_FRAME_COUNTER_RESET_VALUE_4_ADDR = 5,
-    X4_SW_USE_PERIOD_TRIGGER               = 6,
-    X4_SW_PERIOD_0_ADDR                    = 7,
-    X4_SW_PERIOD_1_ADDR                    = 8,
-    X4_SW_PERIOD_2_ADDR                    = 9,
-    X4_SW_PERIOD_3_ADDR                    = 10,
-    X4_SW_PERIOD_DIVIDER_0_ADDR            = 11,
-    X4_SW_PERIOD_DIVIDER_1_ADDR            = 12,
+    X4_SW_REGISTER_FPS_LSB_ADDR                 = 0,
+    X4_SW_REGISTER_FPS_MSB_ADDR                 = 1,
+    X4_SW_FRAME_COUNTER_RESET_VALUE_1_ADDR      = 2,
+    X4_SW_FRAME_COUNTER_RESET_VALUE_2_ADDR      = 3,
+    X4_SW_FRAME_COUNTER_RESET_VALUE_3_ADDR      = 4,
+    X4_SW_FRAME_COUNTER_RESET_VALUE_4_ADDR      = 5,
+    X4_SW_USE_PERIOD_TRIGGER                    = 6,
+    X4_SW_PERIOD_0_ADDR                         = 7,
+    X4_SW_PERIOD_1_ADDR                         = 8,
+    X4_SW_PERIOD_2_ADDR                         = 9,
+    X4_SW_PERIOD_3_ADDR                         = 10,
+    X4_SW_PERIOD_DIVIDER_0_ADDR                 = 11,
+    X4_SW_PERIOD_DIVIDER_1_ADDR                 = 12,
+    X4_SW_TIMER_COMPENSATE_REGISTER             = 13,
+    X4_SW_FRAME_COUNTER_WAITING_VALUE_1_ADDR    = 14,
+    X4_SW_FRAME_COUNTER_WAITING_VALUE_2_ADDR    = 15,
+    X4_SW_FRAME_COUNTER_WAITING_VALUE_3_ADDR    = 16,
+    X4_SW_FRAME_COUNTER_WAITING_VALUE_4_ADDR    = 17,
 } xtx4_software_register_address_t;
+
+
+
 
 
 #define PIF_COMMAND_MAX_RETRIES 200
@@ -124,12 +154,24 @@ const uint32_t  X4DRIVER_BINS_PER_RX_MFRAMES_COARSE = 96;
 const uint32_t  X4DRIVER_BINS_PER_RX_MFRAMES = 12;
 
 //prototypes
-int _x4driver_get_x4_sw_register(X4Driver_t* x4driver, uint8_t address,uint8_t * read_value);
-int _x4driver_set_x4_sw_action(X4Driver_t* x4driver, uint8_t address);
-int _x4driver_set_x4_sw_register(X4Driver_t* x4driver, uint8_t address, uint8_t write_value);
-
 int _x4driver_get_x4_internal_register(X4Driver_t* x4driver, uint8_t address,uint8_t * read_value, uint8_t command);
 int _x4driver_set_internal_register(X4Driver_t* x4driver, uint8_t address, uint8_t write_value, uint8_t command);
+int _x4driver_get_x4_internal_register_using_i2c(X4Driver_t* x4driver, uint8_t address,uint8_t * read_value, uint8_t command);
+int _x4driver_set_internal_register_using_i2c(X4Driver_t* x4driver, uint8_t address, uint8_t write_value, uint8_t command);
+int _x4driver_get_x4_internal_register_using_spi(X4Driver_t* x4driver, uint8_t address,uint8_t * value, uint8_t command);
+int _x4driver_set_internal_register_using_spi(X4Driver_t* x4driver, uint8_t address, uint8_t write_value, uint8_t command);
+
+int _x4driver_upload_firmware_custom_using_spi(X4Driver_t* x4driver, const uint8_t * buffer,uint32_t lenght);
+int _x4driver_upload_firmware_custom_using_i2c(X4Driver_t* x4driver, const uint8_t * buffer,uint32_t lenght);
+int _x4driver_upload_firmware_custom_i2c_driver_using_i2c(X4Driver_t* x4driver, const uint8_t * buffer, uint16_t address, uint32_t lenght);
+int _x4driver_upload_firmware_default_using_spi(X4Driver_t* x4driver);
+int _x4driver_upload_firmware_default_using_i2c(X4Driver_t* x4driver);
+int _x4driver_verify_firmware_using_i2c(X4Driver_t* x4driver, const uint8_t * buffer, uint32_t size);
+int _x4driver_verify_firmware_using_spi(X4Driver_t* x4driver, const uint8_t * buffer, uint32_t size);
+int _x4driver_check_interface(X4Driver_t* x4driver);
+int _x4driver_check_interface_spi(X4Driver_t* x4driver);
+int _x4driver_check_interface_i2c(X4Driver_t* x4driver);
+
 void _x4driver_set_action(X4Driver_t* x4driver,xtx4_x4driver_action_t action);
 void _x4driver_clear_action(X4Driver_t* x4driver,xtx4_x4driver_action_t action);
 
@@ -152,38 +194,40 @@ uint32_t _get_mask(uint32_t number_of_bytes);
 int _x4driver_set_rx_ram_first_line(X4Driver_t* x4driver, uint32_t first_line);
 int _x4driver_set_rx_ram_last_line(X4Driver_t* x4driver,uint32_t last_line);
 int _x4driver_get_framecounter(X4Driver_t* x4driver, uint32_t * read_value);
+int _x4driver_get_framecounter_using_i2c(X4Driver_t* x4driver, uint32_t * value);
+int _x4driver_get_framecounter_using_spi(X4Driver_t* x4driver, uint32_t * value);
 void _invert(int8_t * source,int8_t * dst,uint8_t len);
 
 
-static int8_t downconversion_coeff_eu_q1[32] =
+static const int8_t downconversion_coeff_eu_q1[32] =
     { 0,   1,  -3,  0,   6,  -7, -3,  16,
     -10, -13,  24, -5, -25,  25,  6, -31,
      17,  16, -27,  6,  18, -16, -2,  12,
      -6,  -3,   5, -1,  -1,   1,  0,  0};
-static int8_t downconversion_coeff_eu_q2[32] =
+static const int8_t downconversion_coeff_eu_q2[32] =
     { 0,  -1,   3,  0,  -6,   7,  3, -16,
      10,  13, -24,  5,  25, -25, -6,  31,
     -17, -16,  27, -6, -18,  16,  2, -12,
       6,   3,  -5,  1,   1,  -1,  0,  0};
 
-static int8_t downconversion_coeff_eu_i1[32] =
+static const int8_t downconversion_coeff_eu_i1[32] =
     { 1,  -1,  -1,   5,  -3,  -6,  12, -2,
     -16,  18,   6, -27,  16,  17, -31,  6,
      25, -25,  -5,  24, -13, -10,  16, -3,
      -7,   6,   0,  -3,   1,   0,   0,  0};
-static int8_t downconversion_coeff_eu_i2[32] =
+static const int8_t downconversion_coeff_eu_i2[32] =
     {-1,   1,   1,  -5,   3,   6, -12,  2,
      16, -18,  -6,  27, -16, -17,  31, -6,
     -25,  25,   5, -24,  13,  10, -16,  3,
       7,  -6,   0,   3,  -1,   0,   0,  0};
 
-static int8_t downconversion_coeff_kcc_q[32] =
+static const int8_t downconversion_coeff_kcc_q[32] =
     { 0,   1,  -4,   5,  -3,  -5,  15, -17,
       8,  10, -27,  29, -12, -13,  31, -30,
      12,  10, -24,  21,  -8,  -5,  11,  -8,
       3,   1,  -2,   1,   0,   0,   0,   0};
 
-static int8_t downconversion_coeff_kcc_i[32] =
+static const int8_t downconversion_coeff_kcc_i[32] =
     { 1,  -2,   1,   3,  -8,  11,  -5,  -8,
      21, -24,  10,  12, -30,  31, -13, -12,
      29, -27,  10,   8, -17,  15,  -5,  -3,
@@ -288,17 +332,17 @@ void _update_normalization_constants(X4Driver_t* x4driver)
         (x4driver->dac_max - x4driver->dac_min + 1)/2048.0;
 
     x4driver->normalization_nfactor =
-        (1<<x4driver->dac_step) /
+        (1) /
             (float32_t)(x4driver->iterations*x4driver->pulses_per_step) /
             1024.0;
 
-    if (x4driver->downconversion_enabled == 1){
     float32_t fnf = .0;
-    for (int i = 31; i >= 0; --i)
-        fnf += fabs((float32_t)x4driver->downconversion_coeff_i1[i]);
-    x4driver->filter_normalization_factor = 1.0/fnf;
+    if (x4driver->downconversion_enabled)
+    {
+        for (int i = 31; i >= 0; --i)
+            fnf += fabs((float32_t)x4driver->downconversion_coeff_i1[i]);
+        x4driver->filter_normalization_factor = 1.0/fnf;
     }
-
 }
 
 /**
@@ -411,9 +455,6 @@ uint32_t _update_normalization_variables(X4Driver_t* x4driver)
     uint16_t dac_max = 0x0000;
     x4driver_get_dac_max(x4driver,&dac_max);
     x4driver->dac_max = dac_max;
-    xtx4_dac_step_t dac_step = 0x00;
-    x4driver_get_dac_step(x4driver, &dac_step);
-    x4driver->dac_step = dac_step;
     uint8_t bytes_per_counter = 0x00;
     x4driver_get_pif_register(x4driver,ADDR_PIF_RX_COUNTER_NUM_BYTES_RW,&bytes_per_counter);
     x4driver->bytes_per_counter =bytes_per_counter;
@@ -475,7 +516,7 @@ uint32_t _get_mask(uint32_t number_of_bytes)
  * @return Status of execution as defined in x4driver.h
  */
 __attribute__ ((optimize("-O3")))
-int _x4driver_unpack_frame(X4Driver_t* x4driver,uint32_t* bins_data, uint32_t bins_data_size ,uint8_t * raw_data, uint32_t raw_data_length)
+int _x4driver_unpack_frame(X4Driver_t* x4driver, uint32_t* bins_data, uint32_t bins_data_size, uint8_t * raw_data, uint32_t raw_data_length)
 {
     if (x4driver->bytes_per_counter >4)
     {
@@ -557,26 +598,29 @@ int _x4driver_unpack_and_normalize_downconverted_frame(X4Driver_t* x4driver,floa
         {
             if (i%2 == 0)
             {
-                bins_data[i_data_start] = fbin;
+                if (bins_data != NULL)
+                    bins_data[i_data_start] = fbin;
                 i_data_start++;
             }
             else
             {
-                bins_data[q_data_start] = fbin;
+                if (bins_data != NULL)
+                    bins_data[q_data_start] = fbin;
                 q_data_start++;
             }
         }
         else
         {
-            bins_data[i] = fbin;
+            if (bins_data != NULL)
+                bins_data[i] = fbin;
         }
-
+        
         if ((fbin >= FLT_EPSILON) || (fbin <= -FLT_EPSILON))
             zero_frame = false;
-
+            
         raw_data_index = (i+1)*x4driver->bytes_per_counter;
     }
-
+    
     if (zero_frame)
 	{
         if (x4driver->zero_frame_counter < X4DRIVER_MAX_ALLOWED_ZERO_FRAMES)
@@ -617,7 +661,8 @@ int _x4driver_unpack_and_normalize_frame(X4Driver_t* x4driver,float* bins_data, 
         uint32_t bin_data = *((uint32_t*)&raw_data[raw_data_index]) & mask;
         #pragma GCC diagnostic pop
         float32_t fbin = bin_data*nfactor-offset;
-        bins_data[i] = fbin;
+        if (bins_data != NULL)
+            bins_data[i] = fbin;
         if ((fbin >= FLT_EPSILON) || (fbin <= -FLT_EPSILON))
             zero_frame = false;
         raw_data_index += x4driver->bytes_per_counter;//set_frame_area skip unused bins in start of ram line.
@@ -668,7 +713,7 @@ int x4driver_get_instance_size(void)
  * @return Status of execution as defined in x4driver.h
  */
 int x4driver_create(X4Driver_t** x4driver, void* instance_memory, X4DriverCallbacks_t* x4driver_callbacks,X4DriverLock_t *lock,X4DriverTimer_t *timer,X4DriverTimer_t *timer_action, void* user_reference)
-{
+{    
     X4Driver_t* d = (X4Driver_t*)instance_memory;
     memset(d, 0, sizeof(X4Driver_t));
     d->user_reference = user_reference;
@@ -679,6 +724,8 @@ int x4driver_create(X4Driver_t** x4driver, void* instance_memory, X4DriverCallba
     d->callbacks.pin_set_enable = x4driver_callbacks->pin_set_enable;
     d->callbacks.spi_read = x4driver_callbacks->spi_read;
     d->callbacks.spi_write = x4driver_callbacks->spi_write;
+    d->callbacks.i2c_read = x4driver_callbacks->i2c_read;
+    d->callbacks.i2c_write = x4driver_callbacks->i2c_write;    
     d->callbacks.spi_write_read = x4driver_callbacks->spi_write_read;
     d->callbacks.wait_us = x4driver_callbacks->wait_us;
     d->callbacks.notify_data_ready = x4driver_callbacks->notify_data_ready;
@@ -716,7 +763,8 @@ int x4driver_create(X4Driver_t** x4driver, void* instance_memory, X4DriverCallba
  * Assumes Enable has been set.
  * @return Status of execution as defined in x4driver.h.
  */
-int x4driver_upload_firmware_custom(X4Driver_t* x4driver, uint8_t * buffer,uint32_t lenght)
+
+int _x4driver_upload_firmware_custom_using_spi(X4Driver_t* x4driver, const uint8_t * buffer,uint32_t lenght)
 {
     uint32_t status = mutex_take(x4driver);
     if (status != XEP_ERROR_X4DRIVER_OK) return status;
@@ -736,6 +784,90 @@ int x4driver_upload_firmware_custom(X4Driver_t* x4driver, uint8_t * buffer,uint3
     return status;
 }
 
+/**
+ * @brief Uploads custom 8051 firmware to X4.
+ * Assumes Enable has been set.
+ * @return Status of execution as defined in x4driver.h.
+ */
+int _x4driver_upload_firmware_custom_using_i2c(X4Driver_t* x4driver, const uint8_t * buffer,uint32_t lenght)
+{    
+
+    uint32_t status = mutex_take(x4driver);
+    if (status != XEP_ERROR_X4DRIVER_OK) return status;
+
+    uint16_t fwAddress = 0;
+    uint8_t writeBuffer[9];
+    uint8_t dataPointerBuffer[2] = {0,0};
+    uint8_t i_buf = 0;
+
+    while(fwAddress < lenght) {
+        dataPointerBuffer[0] = (uint8_t) ((fwAddress >> 8) & 0xFF);
+        dataPointerBuffer[1] = (uint8_t) (fwAddress & 0xFF);
+		
+        x4driver_write_to_i2c_register(x4driver, X4_I2C_SET_DATA_POINTER_COMMAND, dataPointerBuffer, 2);
+		xt_delay_us(50);
+        
+        // Set payload length
+		writeBuffer[i_buf++] = sizeof(writeBuffer) - 1;
+
+        // Fill payload bytes and increment address 
+        for (; i_buf < sizeof(writeBuffer) && fwAddress < lenght; fwAddress++) {
+            writeBuffer[i_buf++] = buffer[fwAddress];
+        }
+        while (i_buf < sizeof(writeBuffer)) {
+            writeBuffer[i_buf++] = 0x00;
+        }
+        i_buf = 0;  
+        x4driver_write_to_i2c_register(x4driver, X4_I2C_WRITE_DATA_COMMAND, writeBuffer, sizeof(writeBuffer));
+		
+		xt_delay_us(50);
+              
+    }      
+
+    mutex_give(x4driver);
+    return status;
+}
+
+int _x4driver_upload_firmware_custom_i2c_driver_using_i2c(X4Driver_t* x4driver, const uint8_t * buffer, uint16_t address, uint32_t lenght)
+{    
+
+    uint32_t status = mutex_take(x4driver);
+    if (status != XEP_ERROR_X4DRIVER_OK) return status;
+
+    uint16_t fwAddress = address;
+    uint16_t dataAddress = 0;
+    uint8_t writeBuffer[9];
+    uint8_t dataPointerBuffer[2] = {0,0};
+    uint8_t i_buf = 0;
+
+    while(dataAddress < lenght) {
+        dataPointerBuffer[0] = (uint8_t) ((fwAddress >> 8) & 0xFF);
+        dataPointerBuffer[1] = (uint8_t) (fwAddress & 0xFF);
+		
+        x4driver_write_to_i2c_register(x4driver, X4_I2C_SET_DATA_POINTER_COMMAND, dataPointerBuffer, 2);
+		xt_delay_us(50);
+        
+        // Set payload length
+		writeBuffer[i_buf++] = sizeof(writeBuffer) - 1;
+
+        // Fill payload bytes and increment address 
+        for (; i_buf < sizeof(writeBuffer) && dataAddress < lenght; dataAddress++) {
+            writeBuffer[i_buf++] = buffer[dataAddress];
+            fwAddress++;
+        }
+        while (i_buf < sizeof(writeBuffer)) {
+            writeBuffer[i_buf++] = 0x00;
+        }
+        i_buf = 0;  
+        x4driver_write_to_i2c_register(x4driver, X4_I2C_WRITE_DATA_COMMAND, writeBuffer, sizeof(writeBuffer));
+		
+		xt_delay_us(50);
+              
+    }      
+
+    mutex_give(x4driver);
+    return status;
+}
 
 /**
  * @brief Clear action. Will stop action timer if no other actions are set.
@@ -835,7 +967,7 @@ int x4driver_is_frame_ready(X4Driver_t* x4driver,uint8_t * is_ready)
  * @return Status of execution as defined in x4driver.h.
  */
 int x4driver_start_sweep(X4Driver_t* x4driver)
-{
+{    
     uint32_t status = mutex_take(x4driver);
     if (status != XEP_ERROR_X4DRIVER_OK) return status;
 
@@ -848,8 +980,8 @@ int x4driver_start_sweep(X4Driver_t* x4driver)
     }
     else
     {
-        _x4driver_set_x4_sw_action(x4driver,5);// enable trigger pin.
-        status = x4driver->callbacks.trigger_sweep(x4driver->user_reference);
+        x4driver_set_x4_sw_action(x4driver, X4_SW_ACTION_ENABLE_TRIGGER_FRAME);// enable trigger pin.
+        status = x4driver->callbacks.trigger_sweep(x4driver);
     }
 
     mutex_give(x4driver);
@@ -989,9 +1121,6 @@ int x4driver_setup_default(X4Driver_t* x4driver)
     return status;
 }
 
-
-
-
 /**
  * @brief Upload default 8051 firmware to X4.
  * Assumes Enable has been set.
@@ -999,31 +1128,141 @@ int x4driver_setup_default(X4Driver_t* x4driver)
  */
 int x4driver_upload_firmware_default(X4Driver_t* x4driver)
 {
-    uint32_t status = mutex_take(x4driver);
-    if (status != XEP_ERROR_X4DRIVER_OK)
-        return status;
+#if defined (USE_SPI)
+    
+    return _x4driver_upload_firmware_default_using_spi(x4driver);
+    
+#elif defined (USE_I2C)
 
-    status = x4driver_upload_firmware_custom(x4driver,data_8051_onboard,data_8051_size);
-    if (status != XEP_ERROR_X4DRIVER_OK)
-        return status;
-    status = x4driver_set_spi_register(x4driver,ADDR_SPI_BOOT_FROM_OTP_SPI_RWE,BOOT_FROM_SRAM);
-    if (status != XEP_ERROR_X4DRIVER_OK)
-        return status;
-    status = x4driver_verify_firmware(x4driver,data_8051_onboard,data_8051_size);
-    if (status != XEP_ERROR_X4DRIVER_OK)
-        return status;
-    mutex_give(x4driver);
-    return status;
+    return _x4driver_upload_firmware_default_using_i2c(x4driver);
+
+#endif   
 }
 
+/**
+ * @brief Upload custom 8051 firmware to X4.
+ * Assumes Enable has been set.
+ * @return Status of execution as defined in x4driver.h.
+ */
+int x4driver_upload_firmware_custom(X4Driver_t* x4driver, const uint8_t * buffer, uint32_t length)
+{
+#if defined (USE_SPI)
+    
+    return _x4driver_upload_firmware_custom_using_spi(x4driver, buffer, length);
+    
+#elif defined (USE_I2C)
+
+    return _x4driver_upload_firmware_custom_using_i2c(x4driver, buffer, length);
+
+#endif      
+}
 
 /**
  * @brief Read back embedded 8051 firmware.
  * Assumes Enable has been set.
  * @return Status of execution as defined in x4driver.h.
  */
-int x4driver_verify_firmware(X4Driver_t* x4driver, uint8_t * buffer, uint32_t size)
+int x4driver_verify_firmware(X4Driver_t* x4driver, const uint8_t * buffer, uint32_t size)
+{  	
+#if defined (USE_SPI)
+    
+    return _x4driver_verify_firmware_using_spi(x4driver, buffer, size);
+    
+#elif defined (USE_I2C)
+
+    return _x4driver_verify_firmware_using_i2c(x4driver, buffer, size);
+
+#endif      
+}
+
+int _x4driver_upload_firmware_default_using_spi(X4Driver_t* x4driver)
+{    
+    uint32_t status = mutex_take(x4driver);
+    if (status != XEP_ERROR_X4DRIVER_OK)
+        return status;
+
+    status = _x4driver_upload_firmware_custom_using_spi(x4driver, data_8051_onboard, data_8051_size);
+    if (status != XEP_ERROR_X4DRIVER_OK)
+        return status;
+    status = x4driver_set_spi_register(x4driver, ADDR_SPI_BOOT_FROM_OTP_SPI_RWE, BOOT_FROM_SRAM);
+    if (status != XEP_ERROR_X4DRIVER_OK)
+        return status;
+    status = _x4driver_verify_firmware_using_spi(x4driver, data_8051_onboard, data_8051_size);
+    if (status != XEP_ERROR_X4DRIVER_OK)
+        return status;
+    mutex_give(x4driver);
+    return status;
+}
+
+int _x4driver_upload_firmware_default_using_i2c(X4Driver_t* x4driver)
+{    
+	
+    uint32_t status = mutex_take(x4driver);
+	
+    if (status != XEP_ERROR_X4DRIVER_OK)
+        return status;		
+
+    status = _x4driver_upload_firmware_custom_using_i2c(x4driver, data_8051_onboard, data_8051_size);
+    if (status != XEP_ERROR_X4DRIVER_OK)
+        return status;
+
+    status = _x4driver_verify_firmware_using_i2c(x4driver, data_8051_onboard, data_8051_size);
+    if (status != XEP_ERROR_X4DRIVER_OK)
+        return status;    
+
+    status = x4driver_write_to_i2c_register(x4driver, X4_I2C_SOFT_REBOOT_COMMAND, 0, 0);
+    if (status != XEP_ERROR_X4DRIVER_OK)
+        return status;
+
+    xt_delay_us(1000);      
+
+    mutex_give(x4driver);
+    return status;
+}
+
+int _x4driver_verify_firmware_using_i2c(X4Driver_t* x4driver, const uint8_t * buffer, uint32_t size)
 {
+    uint32_t status = mutex_take(x4driver);
+    if (status != XEP_ERROR_X4DRIVER_OK) return status;
+
+	uint8_t dataPointer[] = { START_OF_SRAM_MSB, START_OF_SRAM_LSB };    
+    x4driver_write_to_i2c_register(x4driver, X4_I2C_SET_DATA_POINTER_COMMAND, dataPointer, ARR_LEN(dataPointer));
+	
+	xt_delay_us(100);
+
+    uint8_t read_back = 0x00;
+    uint32_t errors = 0x00;
+
+    for (uint32_t i = 0; i< size;i++)
+    {        
+        status = x4driver_read_from_i2c_register(x4driver, &read_back, 1);
+        if (buffer[i] != read_back)
+        {
+            // Store in dummy variables for debug purposes when optimization is enabled.
+            //
+            #pragma GCC diagnostic ignored "-Wunused-variable"
+            #pragma GCC diagnostic push
+            volatile uint8_t buffer_value = buffer[i];
+            volatile uint8_t read_back_value = read_back;
+            #pragma GCC diagnostic pop
+            errors++;
+        }
+    }
+
+    mutex_give(x4driver);
+    if (errors >0)
+        return XEP_ERROR_X4DRIVER_8051_VERIFY_FAIL;
+    return status;
+}
+
+/**
+ * @brief Read back embedded 8051 firmware.
+ * Assumes Enable has been set.
+ * @return Status of execution as defined in x4driver.h.
+ */
+
+int _x4driver_verify_firmware_using_spi(X4Driver_t* x4driver, const uint8_t * buffer, uint32_t size)
+{    
     uint32_t status = mutex_take(x4driver);
     if (status != XEP_ERROR_X4DRIVER_OK) return status;
 
@@ -1072,10 +1311,6 @@ int x4driver_verify_firmware(X4Driver_t* x4driver, uint8_t * buffer, uint32_t si
     return status;
 }
 
-
-
-
-
 /**
  * @brief get frame area
  * Start and end in meter.
@@ -1101,7 +1336,7 @@ int x4driver_set_frame_area(X4Driver_t* x4driver, float32_t start, float32_t end
     {
         return XEP_ERROR_X4DRIVER_ERROR_FRAME_AREA_END_OUT_OF_SCOPE;
     }
-
+    
     // Set correct max bins, down-conversion requires 4 first bins to initialize filter
     float32_t X4DRIVER_MAX_BINS_RANGE_METERS = X4DRIVER_MAX_BINS_RANGE_METERS_RF;
     if (x4driver->downconversion_enabled == 1)
@@ -1144,7 +1379,7 @@ int x4driver_set_frame_area(X4Driver_t* x4driver, float32_t start, float32_t end
     double FrameAreaStart = start;
     double FrameAreaStop = end;
     double FrameAreaOffset = x4driver->frame_area_offset_meters;
-
+    
     double dR_bin = X4DRIVER_METERS_PER_BIN * DecimationFactor;
     double R_frame_step = X4DRIVER_METERS_PER_BIN * 96;
     double R_FrameStart_discarded = NumberOfBinsDiscarded * dR_bin;
@@ -1160,7 +1395,7 @@ int x4driver_set_frame_area(X4Driver_t* x4driver, float32_t start, float32_t end
     double RxWait = (double)TxWait+diff_RxTxWait;
     uint8_t RxWait_8 = (uint8_t)RxWait;
     x4driver_set_rx_wait(x4driver,RxWait_8);
-
+    
     // Calculate limits of captured frame
     double FrameStart_quantized = diff_RxTxWait * R_frame_step + FrameAreaOffset;
 
@@ -1169,7 +1404,7 @@ int x4driver_set_frame_area(X4Driver_t* x4driver, float32_t start, float32_t end
     FrameAreaStop = fmax(FrameAreaStop, FrameAreaStart);
 
     // Find start bin index in the captured frame
-    double diff_eps_meter=1e-4;
+    double diff_eps_meter=1e-4; 
     double bin_count_diff = (FrameAreaStart - FrameStart_quantized) / dR_bin;
     double diff = bin_count_diff - ceil(bin_count_diff);
     uint32_t FrameAreaStart_quantized_ind;
@@ -1267,16 +1502,16 @@ int x4driver_read_frame_normalized(X4Driver_t* x4driver, uint32_t* frame_counter
     uint32_t status = mutex_take(x4driver);
     if (status != XEP_ERROR_X4DRIVER_OK) return status;
     //read_raw_data
-    status = x4driver_read_frame_bytes(x4driver, frame_counter,x4driver->spi_buffer, x4driver->frame_read_size);
+    status = x4driver_read_frame_bytes(x4driver, frame_counter,x4driver->com_buffer, x4driver->frame_read_size);
 
 
     if (x4driver->downconversion_enabled == 0)
     {
-        _x4driver_unpack_and_normalize_frame(x4driver,data,length,x4driver->spi_buffer,x4driver->frame_read_size);
+        _x4driver_unpack_and_normalize_frame(x4driver,data,length,x4driver->com_buffer,x4driver->frame_read_size);
     }
     else
     {
-        _x4driver_unpack_and_normalize_downconverted_frame(x4driver,data,length,x4driver->spi_buffer,x4driver->frame_read_size);
+        _x4driver_unpack_and_normalize_downconverted_frame(x4driver,data,length,x4driver->com_buffer,x4driver->frame_read_size);
     }
 
 
@@ -1284,6 +1519,31 @@ int x4driver_read_frame_normalized(X4Driver_t* x4driver, uint32_t* frame_counter
     return status;
 }
 
+/**
+ * @brief Reads frame and unpacks.
+ * @return Status of execution as defined in x4driver.h.
+ */
+int x4driver_read_frame(X4Driver_t* x4driver, uint32_t* frame_counter, uint32_t* data, uint32_t length)
+{
+    uint32_t status = mutex_take(x4driver);
+    if (status != XEP_ERROR_X4DRIVER_OK) return status;
+    //read_raw_data
+    status = x4driver_read_frame_bytes(x4driver, frame_counter,x4driver->com_buffer, x4driver->frame_read_size);
+
+
+    if (x4driver->downconversion_enabled == 0)
+    {
+        _x4driver_unpack_frame(x4driver, data, length, x4driver->com_buffer, x4driver->frame_read_size);
+    }
+    else
+    {
+        return XEP_ERROR_X4DRIVER_NOK;
+    }
+
+
+    mutex_give(x4driver);
+    return status;
+}
 
 
 /**
@@ -1300,25 +1560,19 @@ int x4driver_read_frame_bytes(X4Driver_t* x4driver, uint32_t* frame_counter, uin
 
     if (length < x4driver->frame_read_size)
         return XEP_ERROR_X4DRIVER_BUFFER_TO_SMALL;
-
+    
     uint32_t status = mutex_take(x4driver);
-    if (status != XEP_ERROR_X4DRIVER_OK) return status;
 
-    if (x4driver->ram_select == 0x00) {
-        do {
-            status = x4driver_set_pif_register(x4driver,ADDR_PIF_RAM_SELECT_RW,0x01);
-            status = x4driver_get_pif_register(x4driver,ADDR_PIF_RAM_SELECT_RW,&(x4driver->ram_select));
-        } while (x4driver->ram_select != 1);
-    } else {
-        do {
-            status = x4driver_set_pif_register(x4driver,ADDR_PIF_RAM_SELECT_RW,0x00);
-            status = x4driver_get_pif_register(x4driver,ADDR_PIF_RAM_SELECT_RW,&(x4driver->ram_select));
-        } while (x4driver->ram_select != 0);
-    }
-    if (status != XEP_ERROR_X4DRIVER_OK)
+    if (status != XEP_ERROR_X4DRIVER_OK) return status;    
+
+#if defined (USE_SPI)    
+    
+    if (x4driver->frame_read_size > x4driver->com_buffer_size)
     {
+        x4driver_set_x4_sw_action(x4driver, X4_SW_ACTION_FRAME_READ_DONE);
+
         mutex_give(x4driver);
-        return status;
+        return XEP_ERROR_X4DRIVER_BUFFER_TO_SMALL;
     }
 
     status = x4driver_set_pif_register(x4driver,ADDR_PIF_FETCH_RADAR_DATA_SPI_W,FETCH_DATA_ACTION);
@@ -1331,9 +1585,70 @@ int x4driver_read_frame_bytes(X4Driver_t* x4driver, uint32_t* frame_counter, uin
 
     status = x4driver->callbacks.spi_write_read(x4driver->user_reference, &radar_data_addr, 1,data, x4driver->frame_read_size);
 
-    mutex_give(x4driver);
-    return status;
+#elif defined (USE_I2C)
+    
+    // TODO_HW implement frame transfer over I2C. 
+    // 1.  SEND FETCH_DATA_ACTION to FETCH_RADAR_DATA_PIF register
+    // 2. Then wait by polling RADAR_DATA_PIF_STATUS. It should return 0 when data is ready.
+    // 3. When data is ready send I2C command for copying frame data to some place in xdata
+    // 4. Read frame from xdata.
 
+    // 1.  SEND FETCH_DATA_ACTION to FETCH_RADAR_DATA_PIF register
+    status = x4driver_set_pif_register(x4driver, ADDR_PIF_FETCH_RADAR_DATA_PIF_W, FETCH_DATA_ACTION);
+    if (status != XEP_ERROR_X4DRIVER_OK)
+    {
+        mutex_give(x4driver);
+        return status;
+    }
+
+    // 2. Then wait by polling RADAR_DATA_PIF_STATUS. It should return 0 when data is ready.
+    uint8_t radar_data_pif_status = 0;
+    do{
+        x4driver_get_pif_register(x4driver, ADDR_PIF_RADAR_DATA_PIF_STATUS_R, &radar_data_pif_status);
+
+    } while(radar_data_pif_status & 0x01);
+
+    // 3. Set i2c mode to not increment read pointer
+
+    uint8_t i2c_mode[1];
+
+    i2c_mode[0] = 0;
+    
+    x4driver_write_to_i2c_register(x4driver, X4_I2C_SET_I2C_MODE_COMMAND, &i2c_mode[0], 1);    
+
+
+    // 4. read frame data
+    // set data pointer to pif register ADDR_PIF_RADAR_DATA_PIF_RE
+    uint16_t registerAddress = START_PIF_SRAM_ADDRESS | ADDR_PIF_RADAR_DATA_PIF_RE;
+
+    uint8_t dataPointer[2] = {((registerAddress >> 8) & 0xff), (registerAddress & 0xff)};        
+
+    // Set data pointer 
+    x4driver_write_to_i2c_register(x4driver, X4_I2C_SET_DATA_POINTER_COMMAND, &dataPointer[0], ARR_LEN(dataPointer));    
+
+    // TODO_hw need to test how much delay is necessary
+    xt_delay_us(1000);
+
+    // Read frame data
+    uint8_t * readDataPointer = data;
+    for (uint32_t i = 0; i<x4driver->frame_read_size; i++)
+    {        
+        status = x4driver_read_from_i2c_register(x4driver, &readDataPointer, 1);
+        readDataPointer++;
+    }    
+
+    // 5. set I2c mode back to normal mode
+    i2c_mode[0] = 1;
+    
+    x4driver_write_to_i2c_register(x4driver, X4_I2C_SET_I2C_MODE_COMMAND, &i2c_mode[0], 1);     
+
+
+#endif    
+
+    x4driver_set_x4_sw_action(x4driver, X4_SW_ACTION_FRAME_READ_DONE);
+
+    mutex_give(x4driver);    
+    return status; 
 }
 
 
@@ -1384,11 +1699,11 @@ int x4driver_write_to_spi_register(X4Driver_t* x4driver, uint8_t address, const 
     uint32_t status = mutex_take(x4driver);
     if (status != XEP_ERROR_X4DRIVER_OK) return status;
 
-    if ((length+1) >= x4driver->spi_buffer_size) return XEP_ERROR_X4DRIVER_BUFFER_TO_SMALL;
+    if ((length+1) >= x4driver->com_buffer_size) return XEP_ERROR_X4DRIVER_BUFFER_TO_SMALL;
     address |= 0x80;
-    x4driver->spi_buffer[0] = address;
-    memcpy(&x4driver->spi_buffer[1], values, length);
-    status = x4driver->callbacks.spi_write(x4driver->user_reference, x4driver->spi_buffer, 1+length);
+    x4driver->com_buffer[0] = address;
+    memcpy(&x4driver->com_buffer[1], values, length);
+    status = x4driver->callbacks.spi_write(x4driver->user_reference, x4driver->com_buffer, 1+length);
     mutex_give(x4driver);
     return status;
 }
@@ -1403,11 +1718,47 @@ int x4driver_read_from_spi_register(X4Driver_t* x4driver, uint8_t address, uint8
     uint32_t status = mutex_take(x4driver);
     if (status != XEP_ERROR_X4DRIVER_OK) return status;
 
-    if (length >= x4driver->spi_buffer_size) return XEP_ERROR_X4DRIVER_BUFFER_TO_SMALL;
+    if (length >= x4driver->com_buffer_size) return XEP_ERROR_X4DRIVER_BUFFER_TO_SMALL;
     uint8_t register_write_buffer = address;
     uint8_t register_read_buffer = 0x00;
-    status = x4driver->callbacks.spi_write_read(x4driver->user_reference, &register_write_buffer, 1, x4driver->spi_buffer, length);
-    memcpy(values, x4driver->spi_buffer, length);
+    status = x4driver->callbacks.spi_write_read(x4driver->user_reference, &register_write_buffer, 1, x4driver->com_buffer, length);
+    memcpy(values, x4driver->com_buffer, length);
+    mutex_give(x4driver);
+    return status;
+}
+
+/** 
+ * @brief Writes data to I2C register on radar chip.
+ *
+ * @return Status of execution
+ */
+int x4driver_write_to_i2c_register(X4Driver_t* x4driver, uint8_t address, const uint8_t* values, uint32_t length)
+{
+    uint32_t status = mutex_take(x4driver);
+    if (status != XEP_ERROR_X4DRIVER_OK) return status;
+
+    if ((length+1) >= x4driver->com_buffer_size) return XEP_ERROR_X4DRIVER_BUFFER_TO_SMALL;
+    
+    x4driver->com_buffer[0] = address;
+    memcpy(&x4driver->com_buffer[1], values, length);
+    status = x4driver->callbacks.i2c_write(x4driver->user_reference, x4driver->com_buffer, 1+length);
+    mutex_give(x4driver);
+    return status;
+}
+
+/**
+ * @brief Reads data from I2C register on radar chip.
+ *
+ * @return Status of execution
+ */
+int x4driver_read_from_i2c_register(X4Driver_t* x4driver, uint8_t * values, uint32_t length)
+{
+    uint32_t status = mutex_take(x4driver);
+    if (status != XEP_ERROR_X4DRIVER_OK) return status;
+
+    if (length >= x4driver->com_buffer_size) return XEP_ERROR_X4DRIVER_BUFFER_TO_SMALL;
+    status = x4driver->callbacks.i2c_read(x4driver->user_reference, x4driver->com_buffer, length);
+    memcpy(values, x4driver->com_buffer, length);
     mutex_give(x4driver);
     return status;
 }
@@ -1451,8 +1802,6 @@ static uint32_t bit_is_set(uint32_t data,uint32_t bitnr)
     return ret;
 }
 
-
-
 /**
  * @brief Sets internal register value.
  * requires enable to be set and 8051 SRAM to be program.
@@ -1460,10 +1809,29 @@ static uint32_t bit_is_set(uint32_t data,uint32_t bitnr)
  */
 int _x4driver_set_internal_register(X4Driver_t* x4driver, uint8_t address, uint8_t write_value, uint8_t command)
 {
+#if defined (USE_SPI)
+    
+    return _x4driver_set_internal_register_using_spi(x4driver, address, write_value, command);
+    
+#elif defined (USE_I2C)
+
+    return _x4driver_set_internal_register_using_i2c(x4driver, address, write_value, command);
+
+#endif    
+}
+
+
+int _x4driver_set_internal_register_using_spi(X4Driver_t* x4driver, uint8_t address, uint8_t write_value, uint8_t command)
+{
     uint32_t status = mutex_take(x4driver);
     if (status != XEP_ERROR_X4DRIVER_OK) return status;
     address |= PIF_ADDRESS_WRITE;
 
+    if (x4driver->initialized == 0)
+    {
+        mutex_give(x4driver);
+        return XEP_ERROR_X4DRIVER_UNINITIALIZED;
+    }
 
     uint8_t fifo_status = 0x00;
     uint8_t retries = 0;
@@ -1502,17 +1870,134 @@ int _x4driver_set_internal_register(X4Driver_t* x4driver, uint8_t address, uint8
     return status;
 }
 
+int _x4driver_set_internal_register_using_i2c(X4Driver_t* x4driver, uint8_t address, uint8_t write_value, uint8_t command)
+{
+
+    uint32_t status = mutex_take(x4driver);
+    if (status != XEP_ERROR_X4DRIVER_OK) return status;
+
+    uint16_t registerAddress = 0;
+
+    if(PIF_COMMAND == command) {
+        registerAddress = START_PIF_SRAM_ADDRESS | address;
+        uint8_t dataPointer[2] = {((registerAddress >> 8) & 0xff), (registerAddress & 0xff)};        
+
+        // Set data pointer 
+        x4driver_write_to_i2c_register(x4driver, X4_I2C_SET_DATA_POINTER_COMMAND, &dataPointer[0], ARR_LEN(dataPointer));
+		
+		xt_delay_us(1000);
+
+        uint8_t dataBuffer[2];
+        dataBuffer[0] = 1;             // length
+        dataBuffer[1] = write_value;   // payload
+
+        x4driver_write_to_i2c_register(x4driver, X4_I2C_WRITE_DATA_COMMAND, dataBuffer, ARR_LEN(dataBuffer));
+
+        xt_delay_us(1000);
+    }
+    else if(XIF_COMMAND == command) {
+        registerAddress = START_XIF_SRAM_ADDRESS | address;
+        uint8_t dataPointer[2] = {((registerAddress >> 8) & 0xff), (registerAddress & 0xff)};        
+
+        // Set data pointer 
+        x4driver_write_to_i2c_register(x4driver, X4_I2C_SET_DATA_POINTER_COMMAND, &dataPointer[0], ARR_LEN(dataPointer));
+		
+		xt_delay_us(1000);
+
+        uint8_t dataBuffer[2];
+        dataBuffer[0] = 1;             // length
+        dataBuffer[1] = write_value;   // payload
+
+        x4driver_write_to_i2c_register(x4driver, X4_I2C_WRITE_DATA_COMMAND, dataBuffer, ARR_LEN(dataBuffer));
+        xt_delay_us(1000);
+
+    }    
+    else if(X4_SW_REGISTER_COMMAND == command) {
+        address |= PIF_ADDRESS_WRITE;
+        uint8_t dataBuffer[2];        
+        dataBuffer[0] = address;        // Command containing write flag and address                
+        dataBuffer[1] = write_value;    // Payload                 
+        
+        x4driver_write_to_i2c_register(x4driver, X4_I2C_SW_REGISTER_COMMAND, &dataBuffer[0], ARR_LEN(dataBuffer));
+        xt_delay_us(1000);
+    }
+    else if(X4_SW_ACTION_COMMAND == command) {        
+        uint8_t dataBuffer[1];        
+        dataBuffer[0] = address;        // Command containing write flag and address                
+                
+        x4driver_write_to_i2c_register(x4driver, X4_I2C_ACTION_COMMAND, &dataBuffer[0], 1);
+        xt_delay_us(1000);
+    }
+
+    mutex_give(x4driver);
+    return status;
+}
+
+int _x4driver_get_x4_internal_register_using_i2c(X4Driver_t* x4driver, uint8_t address,uint8_t * value, uint8_t command)
+{    
+    uint32_t status = mutex_take(x4driver);
+    if (status != XEP_ERROR_X4DRIVER_OK) return status;
+
+    uint16_t registerAddress = 0;
+
+    if(PIF_COMMAND == command) {
+        registerAddress = START_PIF_SRAM_ADDRESS | address;
+        uint8_t dataPointer[2] = {((registerAddress >> 8) & 0xff), (registerAddress & 0xff)};
+		        
+        x4driver_write_to_i2c_register(x4driver, X4_I2C_SET_DATA_POINTER_COMMAND, &dataPointer[0], ARR_LEN(dataPointer));
+		
+		xt_delay_us(1000);
+        
+        // Read 1 byte
+        x4driver_read_from_i2c_register(x4driver, value, 1);	
+        xt_delay_us(1000);
+    }    
+    else if(XIF_COMMAND == command) {
+        registerAddress = START_XIF_SRAM_ADDRESS | address;
+        uint8_t dataPointer[2] = {((registerAddress >> 8) & 0xff), (registerAddress & 0xff)};
+		        
+        x4driver_write_to_i2c_register(x4driver, X4_I2C_SET_DATA_POINTER_COMMAND, &dataPointer[0], ARR_LEN(dataPointer));
+		
+		xt_delay_us(1000);
+        
+        // Read 1 byte
+        x4driver_read_from_i2c_register(x4driver, value, 1);	
+        xt_delay_us(1000);
+    }     
+    else if(X4_SW_REGISTER_COMMAND == command) {        
+        uint8_t dataBuffer[1];        
+        dataBuffer[0] = address;        // Command containing read flag and address                        
+
+        // Read to SW REGISTERS
+        x4driver_write_to_i2c_register(x4driver, X4_I2C_SW_REGISTER_COMMAND, &dataBuffer[0], 1);
+
+        xt_delay_us(1000);
+
+        // Read 1 byte
+        x4driver_read_from_i2c_register(x4driver, value, 1);	        
+    }
+    
+    mutex_give(x4driver);
+    return status;
+}
+
 
 /**
  * @brief Sets x4 software action.
  * requires enable to be set and 8051 SRAM to be program.
  * @return Status of execution as defined in x4driver.h
  */
-int _x4driver_set_x4_sw_action(X4Driver_t* x4driver, uint8_t address)
+int x4driver_set_x4_sw_action(X4Driver_t* x4driver, uint8_t address)
 {
     return _x4driver_set_internal_register(x4driver, address, 0xff, X4_SW_ACTION_COMMAND);
 }
 
+/*
+int x4driver_set_x4_sw_action_using_i2c(X4Driver_t* x4driver, uint8_t address)
+{
+    return _x4driver_set_internal_register_using_i2c(x4driver, address, 0xff, X4_SW_ACTION_COMMAND);  
+}
+*/
 
 /**
  * @brief Gets x4 software register value.
@@ -1542,8 +2027,25 @@ int _x4driver_set_x4_sw_register(X4Driver_t* x4driver, uint8_t address, uint8_t 
  */
 int x4driver_set_pif_register(X4Driver_t* x4driver, uint8_t address, uint8_t value)
 {
+
     return _x4driver_set_internal_register(x4driver, address, value, PIF_COMMAND);
 }
+
+/*
+int x4driver_set_pif_register_using_i2c(X4Driver_t* x4driver, uint8_t address, uint8_t value)
+{    
+    return _x4driver_set_internal_register_using_i2c(x4driver, address, value, PIF_COMMAND);
+}
+
+int x4driver_set_x4_sw_register_using_i2c(X4Driver_t* x4driver, uint8_t address, uint8_t value)
+{
+    return _x4driver_set_internal_register_using_i2c(x4driver, address, value, X4_SW_REGISTER_COMMAND);
+}
+int x4driver_get_x4_sw_register_using_i2c(X4Driver_t* x4driver, uint8_t address,uint8_t * value)
+{
+    return _x4driver_get_x4_internal_register_using_i2c(x4driver, address, value, X4_SW_REGISTER_COMMAND);
+}
+*/
 
 
 /**
@@ -1564,10 +2066,29 @@ int x4driver_set_xif_register(X4Driver_t* x4driver, uint8_t address, uint8_t val
  * @return Status of execution as defined in x4driver.h
  */
 int _x4driver_get_framecounter(X4Driver_t* x4driver, uint32_t * value)
-{
+{    
+#if defined (USE_SPI)
+    
+    return  _x4driver_get_framecounter_using_spi(x4driver, value);
+    
+#elif defined (USE_I2C)
 
+    return  _x4driver_get_framecounter_using_i2c(x4driver, value);
+
+#endif
+
+}
+
+int _x4driver_get_framecounter_using_spi(X4Driver_t* x4driver, uint32_t * value)
+{
     uint32_t status = mutex_take(x4driver);
     if (status != XEP_ERROR_X4DRIVER_OK) return status;
+
+    if (x4driver->initialized == 0)
+    {
+        mutex_give(x4driver);
+        return XEP_ERROR_X4DRIVER_UNINITIALIZED;
+    }
 
     uint8_t tmp_rb[4];
     uint8_t fifo_status = 0x00;
@@ -1582,7 +2103,7 @@ int _x4driver_get_framecounter(X4Driver_t* x4driver, uint32_t * value)
         data_in_fifo++;
     }
 
-    _x4driver_set_x4_sw_action(x4driver,9);
+    x4driver_set_x4_sw_action(x4driver, X4_SW_ACTION_FRAME_COUNT_TO_MAILBOX);
     x4driver_get_spi_register(x4driver,ADDR_SPI_FROM_CPU_READ_DATA_RE,&tmp_rb[index]);
     index++;
     x4driver_get_spi_register(x4driver,ADDR_SPI_FROM_CPU_READ_DATA_RE,&tmp_rb[index]);
@@ -1597,20 +2118,61 @@ int _x4driver_get_framecounter(X4Driver_t* x4driver, uint32_t * value)
     #pragma GCC diagnostic pop
     mutex_give(x4driver);
     return status;
+
+}
+
+int _x4driver_get_framecounter_using_i2c(X4Driver_t* x4driver, uint32_t * value)
+{
+    uint32_t status = mutex_take(x4driver);
+    if (status != XEP_ERROR_X4DRIVER_OK) return status;
+    uint8_t tmp_rb[4];
+    uint8_t index = 0;
+    
+    _x4driver_get_x4_sw_register(x4driver, X4_SW_FRAME_COUNTER_WAITING_VALUE_4_ADDR, &tmp_rb[index]);
+    index++;
+    _x4driver_get_x4_sw_register(x4driver, X4_SW_FRAME_COUNTER_WAITING_VALUE_3_ADDR, &tmp_rb[index]);
+    index++;
+    _x4driver_get_x4_sw_register(x4driver, X4_SW_FRAME_COUNTER_WAITING_VALUE_2_ADDR, &tmp_rb[index]);
+    index++;
+    _x4driver_get_x4_sw_register(x4driver, X4_SW_FRAME_COUNTER_WAITING_VALUE_1_ADDR, &tmp_rb[index]);
+
+    #pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Wcast-align"
+    *value =  *((uint32_t*)tmp_rb);
+    #pragma GCC diagnostic pop
+    mutex_give(x4driver);
+    return status;
 }
 
 
+int _x4driver_get_x4_internal_register(X4Driver_t* x4driver, uint8_t address,uint8_t * value, uint8_t command)
+{
+#if defined (USE_SPI)
+    
+    return _x4driver_get_x4_internal_register_using_spi(x4driver, address, value, command);
+    
+#elif defined (USE_I2C)
+
+    return _x4driver_get_x4_internal_register_using_i2c(x4driver,address,value, command);
+
+#endif
+}
 
 /**
  * @brief Gets internal register value.
  * requires enable to be set and 8051 SRAM to be program.
  * @return Status of execution as defined in x4driver.h
  */
-int _x4driver_get_x4_internal_register(X4Driver_t* x4driver, uint8_t address,uint8_t * value, uint8_t command)
-{
-
+int _x4driver_get_x4_internal_register_using_spi(X4Driver_t* x4driver, uint8_t address,uint8_t * value, uint8_t command)
+{    
     uint32_t status = mutex_take(x4driver);
     if (status != XEP_ERROR_X4DRIVER_OK) return status;
+
+    if (x4driver->initialized == 0)
+    {
+        mutex_give(x4driver);
+        return XEP_ERROR_X4DRIVER_UNINITIALIZED;
+    }
 
     uint8_t tmp_rb = 0x00;
     uint8_t fifo_status = 0x00;
@@ -1675,6 +2237,12 @@ int x4driver_get_pif_register(X4Driver_t* x4driver, uint8_t address,uint8_t * va
     return _x4driver_get_x4_internal_register(x4driver,address,value,PIF_COMMAND);
 }
 
+/*
+int x4driver_get_pif_register_using_i2c(X4Driver_t* x4driver, uint8_t address,uint8_t * value)
+{
+    return _x4driver_get_x4_internal_register_using_i2c(x4driver,address,value,PIF_COMMAND);
+}
+*/
 
 /**
  * @brief Gets XIF register value.
@@ -1701,7 +2269,7 @@ int x4driver_init_clock(X4Driver_t* x4driver)
     uint32_t ossc_lock_attemps = OSC_LOCK_ATTEMPS_MAX;
 
     OSC_CTRL_REGISTER = (1<<6);// Enable level shifter, crystal clock output,
-    if (x4driver->external_load_caps)
+    if (x4driver->external_load_caps) 
     {
         // disable internal decoupling
         OSC_CTRL_REGISTER |= (1<<2);
@@ -1710,7 +2278,7 @@ int x4driver_init_clock(X4Driver_t* x4driver)
 
     OSC_CTRL_REGISTER |= (1<<1); // Enable external oscillator, disable internal decoupling
     x4driver_set_pif_register(x4driver,ADDR_PIF_OSC_CTRL_RW,OSC_CTRL_REGISTER);
-
+    
     uint8_t common_pll_status_register_value = 0x00;
     uint8_t osc_lock_bit = 1 << 6;
     uint32_t has_lock = 0;
@@ -2043,7 +2611,51 @@ int x4driver_set_frame_length(X4Driver_t* x4driver, uint8_t cycles)
     return status;
 }
 
+int _x4driver_check_interface_spi(X4Driver_t* x4driver)
+{
+    
+    uint32_t status = 0;
+    uint8_t force_one = 0x00;
+    uint8_t force_zero = 0x00;
+    x4driver_get_spi_register(x4driver, ADDR_SPI_FORCE_ONE_R, &force_one);
+    x4driver_get_spi_register(x4driver, ADDR_SPI_FORCE_ZERO_R, &force_zero);
+    if ((force_one != 0xff) || (force_zero != 0x00))
+    {
+        return XEP_ERROR_X4DRIVER_NOK;
+    }
+    if (status != XEP_ERROR_X4DRIVER_OK)
+    {
+        return status;
+    }
+    
+    x4driver->initialized = 1;    
 
+    return status;    
+
+}
+int _x4driver_check_interface_i2c(X4Driver_t* x4driver)
+{
+    // TODO_HW: implement i2c sanity check
+    uint32_t status = XEP_ERROR_X4DRIVER_OK;
+
+    return status;
+}
+
+
+int _x4driver_check_interface(X4Driver_t* x4driver)
+{
+
+#if defined (USE_SPI)
+
+    return _x4driver_check_interface_spi(x4driver);
+        
+#elif defined (USE_I2C)
+
+    return _x4driver_check_interface_i2c(x4driver);
+
+#endif   
+
+}
 
 /**
  * @brief Inits x4driver.
@@ -2052,54 +2664,140 @@ int x4driver_set_frame_length(X4Driver_t* x4driver, uint8_t cycles)
  */
 int x4driver_init(X4Driver_t* x4driver)
 {
+    uint32_t status = mutex_take(x4driver);
+
+    // Reset x4driver struct to defaults
+    x4driver->zero_frame_counter = 0;
+    x4driver->frame_counter = 0;
+    x4driver->frame_length = 1536;
+    x4driver->frame_is_ready_strategy = FRAME_IS_READY_READ_REGISTERS;
+    x4driver->sweep_trigger_strategy = TRIGGER_SWEEP_READ_REGISTERS;
+    x4driver->next_action = 0;
+    x4driver->trigger_mode = SWEEP_TRIGGER_MANUAL;
+    x4driver->center_frequency = TX_CENTER_FREQUENCY_EU_7_290GHz;
+    x4driver->downconversion_enabled = 0;
+    x4driver->iq_separate = 1;
+    x4driver->configured_fps = 0;
+    x4driver->frame_area_offset_meters =0;
+    x4driver->frame_area_start = 0;
+    x4driver->frame_area_end = X4DRIVER_MAX_BINS_RANGE_METERS_RF;
+    x4driver->ram_select = 0;
+    x4driver->frame_read_size = 0;
+    x4driver->dac_max = 0;
+    x4driver->dac_min = 0;
+    x4driver->iterations = 0;
+    x4driver->pulses_per_step = 0;
+    x4driver->normalization_offset = 0;
+    x4driver->normalization_nfactor = 0;
+    x4driver->filter_normalization_factor = 0;
+    x4driver->bytes_per_counter = 0;
+    x4driver->rx_wait_offset = 0;
+    x4driver->rx_wait = 0;
+    x4driver->required_bins_active = 0;
+    x4driver->rx_mframes = 0;
+    x4driver->rx_mframes_coarse = 0;
+    x4driver->rx_wait_offset_m = 0;
+    x4driver->frame_area_offset_bins = 0;
+    x4driver->frame_area_start_requested = 0;
+    x4driver->frame_area_end_requested = 0;
+    x4driver->frame_area_start_ram_line = 0;
+    x4driver->frame_area_start_bin_requested = 0;
+    x4driver->frame_area_start_ram_line_bin = 0;
+    x4driver->frame_area_start_bin_offset = 0;
+    x4driver->frame_area_end_ram_line = 0;
+    x4driver->frame_area_end_bin_requested = 0;
+    x4driver->frame_area_end_ram_line_bin = 0;
+    x4driver->frame_area_end_bin_offset = 0;
+    x4driver->downconversion_coeff_i1 = 0;
+    x4driver->downconversion_coeff_i2 = 0;
+    x4driver->downconversion_coeff_q1 = 0;
+    x4driver->downconversion_coeff_q2 = 0;
+    memset(x4driver->downconversion_coeff_custom_q1, 0, 32);
+    memset(x4driver->downconversion_coeff_custom_i1, 0, 32);
+    memset(x4driver->downconversion_coeff_custom_q2, 0, 32);
+    memset(x4driver->downconversion_coeff_custom_i2, 0, 32);
+    
+    if (status != XEP_ERROR_X4DRIVER_OK) 
+        return status;
+
+#if defined (USE_SPI)    
     x4driver->callbacks.enable_data_ready_isr(x4driver->user_reference,0);
-    uint32_t status = 0;
+#endif    
+    status = 0;
     status = x4driver_set_enable(x4driver,0);
     status = x4driver_set_enable(x4driver,1);
+            
     // Wait until X4 is stable.
+#if defined (USE_SPI)    
     x4driver->callbacks.wait_us(100);
+#elif defined (USE_I2C)
+    x4driver->callbacks.wait_us(1000);
+#endif    
 
-    uint8_t force_one = 0x00;
-    uint8_t force_zero = 0x00;
-    //while(1){
-      x4driver_get_spi_register(x4driver, ADDR_SPI_FORCE_ONE_R, &force_one);
-      NRF_LOG_INFO("FORCEONE = %X \n", force_one);
-      x4driver_get_spi_register(x4driver, ADDR_SPI_FORCE_ZERO_R, &force_zero);
-      NRF_LOG_INFO("FORCEZERO = %X \n", force_zero);
-    //}
-
-    if ((force_one != 0xff) || (force_zero != 0x00))
-    {
-        return XEP_ERROR_X4DRIVER_NOK;
-    }
+    status = _x4driver_check_interface(x4driver);
     if (status != XEP_ERROR_X4DRIVER_OK)
-        return status;
-
+    {
+        x4driver->initialized = 0;
+        mutex_give(x4driver);
+        return status;  
+    }
+          
     status = x4driver_upload_firmware_default(x4driver);
     if (status != XEP_ERROR_X4DRIVER_OK)
+    {
+        x4driver->initialized = 0;
+        mutex_give(x4driver);
         return status;
-
-
+    }
 
     status = x4driver_ldo_enable_all(x4driver);
     if (status != XEP_ERROR_X4DRIVER_OK)
+    {
+        x4driver->initialized = 0;
+        mutex_give(x4driver);
         return status;
+    }
     status = x4driver_init_clock(x4driver);
     if (status != XEP_ERROR_X4DRIVER_OK)
+    {
+        x4driver->initialized = 0;
+        mutex_give(x4driver);
         return status;
+    }
     status = x4driver_setup_default(x4driver);
     if (status != XEP_ERROR_X4DRIVER_OK)
+    {
+        x4driver->initialized = 0;
+        mutex_give(x4driver);
         return status;
+    }
     status = _update_normalization_variables(x4driver);
     if (status != XEP_ERROR_X4DRIVER_OK)
+    {
+        x4driver->initialized = 0;
+        mutex_give(x4driver);
         return status;
+    }
     status = x4driver_set_frame_area(x4driver,x4driver->frame_area_start,x4driver->frame_area_end);
     if (status != XEP_ERROR_X4DRIVER_OK)
+    {
+        x4driver->initialized = 0;
+        mutex_give(x4driver);
         return status;
+    }
     status = x4driver_set_downconversion(x4driver,0);
     if (status != XEP_ERROR_X4DRIVER_OK)
+    {
+        x4driver->initialized = 0;
+        mutex_give(x4driver);
         return status;
+    }
+
+#if defined (USE_SPI)	    
     x4driver->callbacks.enable_data_ready_isr(x4driver->user_reference, 1);
+#endif	  
+
+    mutex_give(x4driver);
     return status;
 }
 
@@ -2242,49 +2940,6 @@ int x4driver_get_pif_segment(X4Driver_t* x4driver,uint8_t segment_address,uint8_
     mutex_give(x4driver);
     return status;
 }
-
-
-/*
- * @brief Sets trx_dac_step_clog2 segment of TRX_DAC_STEP register.
- * requires enable to be set and 8051 SRAM to be program.
- * @return Status of execution as defined in x4driver.h
- */
-int x4driver_set_dac_step(X4Driver_t* x4driver, xtx4_dac_step_t  dac_step)
-{
-    uint32_t status = mutex_take(x4driver);
-    if (status != XEP_ERROR_X4DRIVER_OK) return status;
-
-    if (dac_step > 3)
-    {
-        status = XEP_ERROR_X4DRIVER_INVALID_DACSTEP_INPUT;
-        mutex_give(x4driver);
-        return status;
-    }
-    x4driver->dac_step = dac_step;
-    _update_normalization_constants(x4driver);
-
-    status = x4driver_set_pif_segment(x4driver,ADDR_PIF_TRX_DAC_STEP_RW,0x03,dac_step);
-    mutex_give(x4driver);
-    return status;
-}
-
-/*
- * @brief Gets trx_dac_step_clog2 segment of TRX_DAC_STEP register.
- * requires enable to be set and 8051 SRAM to be program.
- * @return Status of execution as defined in x4driver.h
- */
-int x4driver_get_dac_step(X4Driver_t* x4driver, xtx4_dac_step_t * dac_step)
-{
-    uint32_t status = mutex_take(x4driver);
-    if (status != XEP_ERROR_X4DRIVER_OK) return status;
-    uint8_t _dac_step = 0x00;
-    status = x4driver_get_pif_segment(x4driver,ADDR_PIF_TRX_DAC_STEP_RW,0x03,&_dac_step);
-    *dac_step = _dac_step;
-    mutex_give(x4driver);
-    return status;
-}
-
-
 
 /*
  * @brief Gets DAC min.
@@ -2433,10 +3088,10 @@ int x4driver_set_fps(X4Driver_t* x4driver, float32_t fps)
     }
     else if (x4driver->trigger_mode == SWEEP_TRIGGER_X4)
     {
-        _x4driver_set_x4_sw_action(x4driver,X4_SW_ACTION_STOP_TIMER);
+        status |= x4driver_set_x4_sw_action(x4driver,X4_SW_ACTION_STOP_TIMER);
         if (fps > FLT_EPSILON)
         {
-            _x4driver_set_x4_sw_register(x4driver,X4_SW_USE_PERIOD_TRIGGER,0);
+            status |= _x4driver_set_x4_sw_register(x4driver,X4_SW_USE_PERIOD_TRIGGER,0);
             if ((fps > 0.0) && fps < 1.0)
             {
                 fps = 1.0;
@@ -2449,9 +3104,9 @@ int x4driver_set_fps(X4Driver_t* x4driver, float32_t fps)
             }
             uint8_t fps_lsb = (uint8_t)(fps_uint & 0x000000ff);
             uint8_t fps_msb = (uint8_t)((fps_uint & 0x0000ff00)>>8);
-            _x4driver_set_x4_sw_register(x4driver,X4_SW_REGISTER_FPS_LSB_ADDR,fps_lsb);
-            _x4driver_set_x4_sw_register(x4driver,X4_SW_REGISTER_FPS_MSB_ADDR,fps_msb);
-            _x4driver_set_x4_sw_action(x4driver,X4_SW_ACTION_START_TIMER);
+            status |= _x4driver_set_x4_sw_register(x4driver,X4_SW_REGISTER_FPS_LSB_ADDR,fps_lsb);
+            status |= _x4driver_set_x4_sw_register(x4driver,X4_SW_REGISTER_FPS_MSB_ADDR,fps_msb);
+            status |= x4driver_set_x4_sw_action(x4driver,X4_SW_ACTION_START_TIMER);
         }
     }
     else if (x4driver->trigger_mode == SWEEP_TRIGGER_MANUAL)
@@ -2795,11 +3450,9 @@ int x4driver_get_sweep_time(X4Driver_t* x4driver, float32_t * sweep_time)
 {
     uint16_t dac_min =0;
     uint16_t dac_max =0;
-    xtx4_dac_step_t dac_step =DAC_STEP_1;
     x4driver_get_dac_min(x4driver,&dac_min);
     x4driver_get_dac_max(x4driver,&dac_max);
-    x4driver_get_dac_step(x4driver,&dac_step);
-    uint8_t dac_step_val =  1 << dac_step;
+    uint8_t dac_step_val =  1;
 
     uint16_t pulses_per_step = 0;
     x4driver_get_pulses_per_step(x4driver,&pulses_per_step);
@@ -2865,11 +3518,9 @@ int x4driver_check_configuration(X4Driver_t* x4driver)
 
     uint16_t dac_min =0;
     uint16_t dac_max =0;
-    xtx4_dac_step_t dac_step =DAC_STEP_1;
     x4driver_get_dac_min(x4driver,&dac_min);
     x4driver_get_dac_max(x4driver,&dac_max);
-    x4driver_get_dac_step(x4driver,&dac_step);
-    uint8_t dac_step_val =  1 << dac_step;
+    uint8_t dac_step_val =  1;
 
     uint16_t pulses_per_step = 0;
     x4driver_get_pulses_per_step(x4driver,&pulses_per_step);
@@ -3008,7 +3659,7 @@ int x4driver_set_frame_trigger_period(X4Driver_t* x4driver, uint32_t period)
     {
         float32_t period_seconds = (1.0/10000)*period;
         x4driver->configured_fps = 1/period_seconds;
-        _x4driver_set_x4_sw_action(x4driver,X4_SW_ACTION_STOP_TIMER);
+        x4driver_set_x4_sw_action(x4driver,X4_SW_ACTION_STOP_TIMER);
         if (period != 0)
         {
              _x4driver_set_x4_sw_register(x4driver,X4_SW_USE_PERIOD_TRIGGER,1);
@@ -3021,7 +3672,7 @@ int x4driver_set_frame_trigger_period(X4Driver_t* x4driver, uint32_t period)
             uint8_t period_3 = (uint8_t)((period & 0xff000000)>>8);
             _x4driver_set_x4_sw_register(x4driver,X4_SW_PERIOD_3_ADDR,period_3);
 
-            _x4driver_set_x4_sw_action(x4driver,X4_SW_ACTION_START_TIMER);
+            x4driver_set_x4_sw_action(x4driver,X4_SW_ACTION_START_TIMER);
         }
     }
     else

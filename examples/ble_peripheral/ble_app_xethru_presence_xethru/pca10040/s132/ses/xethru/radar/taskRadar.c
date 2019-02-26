@@ -79,11 +79,12 @@ void x4driver_data_ready(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t action)
     NRF_LOG_INFO("fail to get x4 frame data errorcode:%d! \n", status);
   }
 
-  NRF_LOG_INFO("Size:%d,New Frame Data Normolized(%d){\n", x4driver->frame_read_size, frame_counter);
+  printf("Size:%d,New Frame Data Normolized(%d){\n", x4driver->frame_read_size, frame_counter);
   for (uint32_t i = 0; i < x4driver->frame_read_size; i=i+1) {
-    NRF_LOG_INFO("[%d]:%X, ",i, data_frame_bytes[i]);
+    //printf("[%d]:%X, ",i, data_frame_bytes[i]);
+    printf("%X, ",data_frame_bytes[i]);
   }
-  NRF_LOG_INFO("}\n");
+  printf("}\n");
 
 //    if (true == first_frame) {
 //    first_frame = false;
@@ -112,7 +113,8 @@ void x4driver_data_ready(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t action)
 //    printf("Size:%d,New Frame Data Normolized(%d){\n",fdata_count,frame_counter);
 //    for(uint32_t i=0; i<fdata_count; i++)
 //    {
-//       printf("[%d]:%f, ",i, data_frame_normolized[i]);
+//       //printf("[%d]:%f, ",i, data_frame_normolized[i]);
+//       printf("%f, ", data_frame_normolized[i]);
 //        //NRF_LOG_INFO("[%d]:" NRF_LOG_FLOAT_MARKER,i,NRF_LOG_FLOAT(data_frame_normolized[i]) );
 //        //NRF_LOG_INFO(NRF_LOG_FLOAT_MARKER,NRF_LOG_FLOAT(data_frame_normolized[i]) );
 //        //NRF_LOG_INFO(NRF_LOG_FLOAT_MARKER,NRF_LOG_FLOAT(0.168f) );
@@ -165,8 +167,8 @@ void x4driver_enable_ISR(void *user_reference, uint32_t enable) {
     err_code = nrf_drv_gpiote_out_init(BSP_LED_0, &out_config);
     APP_ERROR_CHECK(err_code);
 
-    nrf_drv_gpiote_in_config_t in_config = GPIOTE_CONFIG_IN_SENSE_HITOLO(true);
-    in_config.pull = NRF_GPIO_PIN_PULLUP;
+    nrf_drv_gpiote_in_config_t in_config = GPIOTE_CONFIG_IN_SENSE_LOTOHI(true);
+    in_config.pull = NRF_GPIO_PIN_PULLDOWN;
     err_code = nrf_drv_gpiote_in_init(X4_GPIO_INT, &in_config, x4driver_data_ready);
     nrf_drv_gpiote_in_event_enable(X4_GPIO_INT, true);
   } else {

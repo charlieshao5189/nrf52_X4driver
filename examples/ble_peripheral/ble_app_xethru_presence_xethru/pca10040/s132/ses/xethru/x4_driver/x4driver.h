@@ -13,6 +13,8 @@ typedef float float32_t;
 
 
 
+
+
 /**
  * Function pointer allowing access to x4 enable pin.
  */
@@ -32,6 +34,17 @@ typedef uint32_t (*SpiReadFunc)(void* user_reference, uint8_t* data, uint32_t le
  * Function pointer allowing read/write access to spi bus.
  */
 typedef uint32_t (*SpiWriteReadFunc)(void* user_reference, uint8_t* wdata, uint32_t wlength, uint8_t* rdata, uint32_t rlength);
+
+/**
+ * Function pointer allowing write access to i2c bus.
+ */
+typedef uint32_t (*I2cWriteFunc)(void* user_reference, uint8_t* data, uint32_t length);
+
+/**
+ * Function pointer allowing read to i2c bus.
+ */
+typedef uint32_t (*I2cReadFunc)(void* user_reference, uint8_t* data, uint32_t length);
+
 
 /**
  * Function pointer allowing locking of lock struct.
@@ -296,17 +309,23 @@ typedef enum {
     ADDR_XIF__APC_TEMP_TRIM_RW                  = 10,
 } xtx4_xif_register_address_t;
 
-
 /**
- * DAC steps for X4.
+ * @brief X4 software actions enum.
  */
 typedef enum {
-    DAC_STEP_1                                  = 0,
-    DAC_STEP_2                                  = 1,
-    DAC_STEP_4                                  = 2,
-    DAC_STEP_8                                  = 3,
-} xtx4_dac_step_t;
-
+    X4_SW_ACTION_START_TIMER            = 0,
+    X4_SW_ACTION_STOP_TIMER             = 1,
+    X4_SW_ACTION_TRIGGER_FRAME          = 2,
+    X4_SW_ACTION_SET_RADAR_DATA_READY   = 3,
+    X4_SW_ACTION_CLEAR_RADAR_DATA_READY = 4,
+    X4_SW_ACTION_ENABLE_TRIGGER_FRAME   = 5,
+    X4_SW_ACTION_DISABLE_TRIGGER_FRAME  = 6,
+    X4_SW_ACTION_ENABLE_SWEEP_DONE      = 7,
+    X4_SW_ACTION_DISABLE_SWEEP_DONE     = 8,
+    X4_SW_ACTION_FRAME_COUNT_TO_MAILBOX = 9,
+    X4_SW_ACTION_RESET_FRAME_COUNTER    = 10,
+    X4_SW_ACTION_FRAME_READ_DONE        = 11,    
+} xtx4_software_action_address_t;
 
 /**
  * Sweep trigger modes for X4.
@@ -368,6 +387,8 @@ typedef struct
     SpiWriteFunc spi_write;
     SpiReadFunc spi_read;
     SpiWriteReadFunc spi_write_read;
+    I2cWriteFunc i2c_write;
+    I2cReadFunc i2c_read;
     WaitUsFunc wait_us;
     NotifyDataReadyFunc notify_data_ready;
     TriggerSweepFunc trigger_sweep;
@@ -406,6 +427,7 @@ typedef struct
 typedef struct
 {
     void* user_reference;
+    uint32_t initialized;
     X4DriverLock_t lock;
     X4DriverTimer_t sweep_timer;
     X4DriverTimer_t action_timer;
@@ -421,7 +443,6 @@ typedef struct
     xtx4_sweep_trigger_control_mode_t trigger_mode;
     uint32_t dac_max;
     uint32_t dac_min;
-    xtx4_dac_step_t dac_step;
     uint32_t iterations;
     uint32_t pulses_per_step;
     float32_t normalization_offset;
@@ -439,8 +460,8 @@ typedef struct
     float32_t rx_wait_offset_m;
     uint32_t frame_area_offset_bins;
     float32_t frame_area_offset_meters;
-    uint8_t* spi_buffer;
-    uint32_t spi_buffer_size;
+    uint8_t* com_buffer;
+    uint32_t com_buffer_size;
     float32_t frame_area_start;
     float32_t frame_area_end;
     float32_t frame_area_start_requested;
@@ -461,10 +482,10 @@ typedef struct
     The coefficients cannot be read back from X4.
     Should be written with most significant coefficient first.
  */
-    int8_t *downconversion_coeff_i1;
-    int8_t *downconversion_coeff_i2;
-    int8_t *downconversion_coeff_q1;
-    int8_t *downconversion_coeff_q2;
+    const int8_t *downconversion_coeff_i1;
+    const int8_t *downconversion_coeff_i2;
+    const int8_t *downconversion_coeff_q1;
+    const int8_t *downconversion_coeff_q2;
     
     int8_t downconversion_coeff_custom_q1[32];
     int8_t downconversion_coeff_custom_i1[32];
@@ -485,7 +506,7 @@ extern "C" {
  * Assumes Enable has been set.
  * @return Status of execution as defined in x4driver.h.
  */
-int x4driver_verify_firmware(X4Driver_t* x4driver, uint8_t * buffer, uint32_t size);
+int x4driver_verify_firmware(X4Driver_t* x4driver, const uint8_t * buffer, uint32_t size);
 
 
 /**
@@ -534,6 +555,11 @@ int x4driver_set_fps(X4Driver_t* x4driver, float32_t fps);
  */
 int x4driver_read_frame_normalized(X4Driver_t* x4driver, uint32_t* frame_counter, float32_t* data, uint32_t length);
 
+/**
+ * @brief Reads frame and unpacks.
+ * @return Status of execution as defined in x4driver.h,
+ */
+int x4driver_read_frame(X4Driver_t* x4driver, uint32_t* frame_counter, uint32_t* data, uint32_t length);
 
 /**
  * @brief Gets current frame length.
@@ -580,6 +606,21 @@ int x4driver_write_to_spi_register(X4Driver_t* x4driver, uint8_t address, const 
 int x4driver_read_from_spi_register(X4Driver_t* x4driver, uint8_t address, uint8_t * values, uint32_t length);
 
 /**
+ * @brief Writes data to I2C register on radar chip.
+ *
+ * @return Status of execution
+ */
+int x4driver_write_to_i2c_register(X4Driver_t* x4driver, uint8_t address, const uint8_t* values, uint32_t length);
+
+/**
+ * @brief Reads data from I2C register on radar chip.
+ *
+ * @return Status of execution
+ */
+int x4driver_read_from_i2c_register(X4Driver_t* x4driver, uint8_t * values, uint32_t length);
+
+
+/**
  * @brief Uploads default 8051 firmware to X4.
  * Assumes Enable has been set.
  * @return Status of execution as defined in x4driver.h.
@@ -592,7 +633,7 @@ int x4driver_upload_firmware_default(X4Driver_t* x4driver);
  * Assumes Enable has been set.
  * @return Status of execution as defined in x4driver.h.
  */
-int x4driver_upload_firmware_custom(X4Driver_t* x4driver, uint8_t * buffer,uint32_t lenght);
+int x4driver_upload_firmware_custom(X4Driver_t* x4driver, const uint8_t * buffer,uint32_t lenght);
 
 
 /**
@@ -602,6 +643,12 @@ int x4driver_upload_firmware_custom(X4Driver_t* x4driver, uint8_t * buffer,uint3
  */
 int x4driver_get_pif_register(X4Driver_t* x4driver, uint8_t address,uint8_t * value);
 
+/**
+ * @brief Sets x4 software action.
+ * requires enable to be set and 8051 SRAM to be program.
+ * @return Status of execution as defined in x4driver.h
+ */
+int x4driver_set_x4_sw_action(X4Driver_t* x4driver, uint8_t address);
 
 /**
  * @brief Gets XIF register value.
@@ -609,7 +656,6 @@ int x4driver_get_pif_register(X4Driver_t* x4driver, uint8_t address,uint8_t * va
  * @return Status of execution as defined in x4driver.h
  */
 int x4driver_get_xif_register(X4Driver_t* x4driver, uint8_t address,uint8_t * value);
-
 
 /**
  * @brief Sets PIF register value.
@@ -747,19 +793,13 @@ int x4driver_get_pif_segment(X4Driver_t* x4driver,uint8_t segment_address,uint8_
 
 
 /*
- * @brief Sets trx_dac_step_clog2 segment of TRX_DAC_STEP register.
- * requires enable to be set and 8051 SRAM to be program.
- * @return Status of execution as defined in x4driver.h
+ * Implementation of x4driver_set_dac_step has been removed.
+ * Check X4 device datasheet to find information on how to change
+ * DAC step using PIF registers directly. 
+ * Use x4driver_set_pif_register.
  */
-int x4driver_set_dac_step(X4Driver_t* x4driver, xtx4_dac_step_t  dac_step);
-
-
-/*
- * @brief Gets trx_dac_step_clog2 segment of TRX_DAC_STEP register.
- * requires enable to be set and 8051 SRAM to be program.
- * @return Status of execution as defined in x4driver.h
- */
-int x4driver_get_dac_step(X4Driver_t* x4driver, xtx4_dac_step_t * dac_step);
+//int x4driver_set_dac_step(X4Driver_t* x4driver, xtx4_dac_step_t  dac_step);
+//int x4driver_get_dac_step(X4Driver_t* x4driver, xtx4_dac_step_t * dac_step);
 
 
 /*

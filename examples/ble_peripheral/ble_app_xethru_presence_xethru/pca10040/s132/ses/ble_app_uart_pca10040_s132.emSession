@@ -2,9 +2,6 @@
 <session>
  <Bookmarks/>
  <Breakpoints groups="Breakpoints" active_group="Breakpoints">
-  <BreakpointListItem trigger="" line="150" counter="0" hardwareBreakpoint="" isFunctionBreakpoint="false" action="" expression="" group="Breakpoints" type="Breakpoint" state="2" filename="XeThru/hal/radar_hal.c" useHWbreakpoint="false"/>
-  <BreakpointListItem trigger="" line="167" counter="0" hardwareBreakpoint="" isFunctionBreakpoint="false" action="" expression="" group="Breakpoints" type="Breakpoint" state="2" filename="XeThru/hal/radar_hal.c" useHWbreakpoint="false"/>
-  <BreakpointListItem trigger="" line="50" counter="0" hardwareBreakpoint="" isFunctionBreakpoint="false" action="" expression="" group="Breakpoints" type="Breakpoint" state="2" filename="XeThru/hal/radar_hal.c" useHWbreakpoint="false"/>
   <Exceptions set="MemManage;UsageFault_Coprocessor;UsageFault_CheckingError;UsageFault_StateError;BusFault;ExceptionEntryReturnFault;HardFault"/>
  </Breakpoints>
  <ExecutionProfileWindow/>
@@ -40,7 +37,7 @@
   <ProjectSessionItem path="ble_app_uart_pca10040_s132;ble_app_uart_pca10040_s132;nRF_Segger_RTT"/>
  </Project>
  <Register1>
-  <RegisterWindow visibleNodes="TIMER1/TASKS_START;TIMER1/TASKS_STOP;TIMER1/TASKS_COUNT;TIMER1/TASKS_CLEAR;TIMER1/TASKS_SHUTDOWN;TIMER1/TASKS_CAPTURE[0];TIMER1/TASKS_CAPTURE[1];TIMER1/TASKS_CAPTURE[2];TIMER1/TASKS_CAPTURE[3];TIMER1/TASKS_CAPTURE[4];TIMER1/TASKS_CAPTURE[5];TIMER1/EVENTS_COMPARE[0];TIMER1/EVENTS_COMPARE[1];TIMER1/EVENTS_COMPARE[2];TIMER1/EVENTS_COMPARE[3];TIMER1/EVENTS_COMPARE[4];TIMER1/EVENTS_COMPARE[5];TIMER1/SHORTS;TIMER1/INTENSET;TIMER1/INTENCLR;TIMER1/MODE;TIMER1/BITMODE;TIMER1/PRESCALER;TIMER1/CC[0];TIMER1/CC[1];TIMER1/CC[2];TIMER1/CC[3];TIMER1/CC[4];TIMER1/CC[5];SPIM0/TASKS_START;SPIM0/TASKS_STOP;SPIM0/TASKS_SUSPEND;SPIM0/TASKS_RESUME;SPIM0/EVENTS_STOPPED;SPIM0/EVENTS_ENDRX;SPIM0/EVENTS_END;SPIM0/EVENTS_ENDTX;SPIM0/EVENTS_STARTED;SPIM0/SHORTS;SPIM0/INTENSET;SPIM0/INTENCLR;SPIM0/ENABLE;SPIM0/FREQUENCY;SPIM0/CONFIG;SPIM0/ORC;SPIM0/PSEL.SCK;SPIM0/PSEL.MOSI;SPIM0/PSEL.MISO;SPIM0/RXD.PTR;SPIM0/RXD.MAXCNT;SPIM0/RXD.AMOUNT;SPIM0/RXD.LIST;SPIM0/TXD.PTR;SPIM0/TXD.MAXCNT;SPIM0/TXD.AMOUNT;SPIM0/TXD.LIST" binaryNodes="" asciiNodes="" openNodes="TIMER1;SPIM0;SPIM0/RXD.MAXCNT;SPIM0/RXD.AMOUNT;SPIM0/RXD.LIST" name="ble_app_uart_pca10040_s132" decimalNodes="" octalNodes="" unsignedNodes=""/>
+  <RegisterWindow visibleNodes="TIMER1/TASKS_START;TIMER1/TASKS_STOP;TIMER1/TASKS_COUNT;TIMER1/TASKS_CLEAR;TIMER1/TASKS_SHUTDOWN;TIMER1/TASKS_CAPTURE[0];TIMER1/TASKS_CAPTURE[1];TIMER1/TASKS_CAPTURE[2];TIMER1/TASKS_CAPTURE[3];TIMER1/TASKS_CAPTURE[4];TIMER1/TASKS_CAPTURE[5];TIMER1/EVENTS_COMPARE[0];TIMER1/EVENTS_COMPARE[1];TIMER1/EVENTS_COMPARE[2];TIMER1/EVENTS_COMPARE[3];TIMER1/EVENTS_COMPARE[4];TIMER1/EVENTS_COMPARE[5];TIMER1/SHORTS;TIMER1/INTENSET;TIMER1/INTENCLR;TIMER1/MODE;TIMER1/BITMODE;TIMER1/PRESCALER;TIMER1/CC[0];TIMER1/CC[1];TIMER1/CC[2];TIMER1/CC[3];TIMER1/CC[4];TIMER1/CC[5];SPIM0/TASKS_START;SPIM0/TASKS_STOP;SPIM0/TASKS_SUSPEND;SPIM0/TASKS_RESUME;SPIM0/EVENTS_STOPPED;SPIM0/EVENTS_ENDRX;SPIM0/EVENTS_END;SPIM0/EVENTS_ENDTX;SPIM0/EVENTS_STARTED;SPIM0/SHORTS;SPIM0/INTENSET;SPIM0/INTENCLR;SPIM0/ENABLE;SPIM0/FREQUENCY;SPIM0/CONFIG;SPIM0/ORC;SPIM0/PSEL.SCK;SPIM0/PSEL.MOSI;SPIM0/PSEL.MISO;SPIM0/RXD.PTR;SPIM0/RXD.MAXCNT;SPIM0/RXD.AMOUNT;SPIM0/RXD.LIST;SPIM0/TXD.PTR;SPIM0/TXD.MAXCNT;SPIM0/TXD.AMOUNT;SPIM0/TXD.LIST" binaryNodes="" asciiNodes="" openNodes="TIMER1;SPIM0;SPIM0/RXD.MAXCNT;SPIM0/RXD.AMOUNT;SPIM0/RXD.LIST;SPIM0/TXD.PTR;SPIM0/TXD.MAXCNT;SPIM0/TXD.AMOUNT" name="ble_app_uart_pca10040_s132" decimalNodes="" octalNodes="" unsignedNodes=""/>
  </Register1>
  <Register2>
   <RegisterWindow visibleNodes="CPU - Current Context/r0;CPU - Current Context/r1;CPU - Current Context/r2;CPU - Current Context/r3;CPU - Current Context/r4;CPU - Current Context/r5;CPU - Current Context/r6;CPU - Current Context/r7;CPU - Current Context/r8;CPU - Current Context/r9;CPU - Current Context/r10;CPU - Current Context/r11;CPU - Current Context/r12;CPU - Current Context/sp(r13);CPU - Current Context/lr(r14);CPU - Current Context/pc(r15);CPU - Current Context/apsr;CPU/r0;CPU/r1;CPU/r2;CPU/r3;CPU/r4;CPU/r5;CPU/r6;CPU/r7;CPU/r8;CPU/r9;CPU/r10;CPU/r11;CPU/r12;CPU/sp(r13);CPU/lr(r14);CPU/pc(r15);CPU/xpsr;CPU/msp;CPU/psp;CPU/cfbp" binaryNodes="" asciiNodes="" openNodes="CPU - Current Context" name="ble_app_uart_pca10040_s132" decimalNodes="" octalNodes="" unsignedNodes=""/>
@@ -60,10 +57,11 @@
  <Watch1>
   <Watches active="1" update="Each Second">
    <Watchpoint numelements="0" expression="data_frame_bytes" evalMode="1" name="data_frame_bytes" radix="-1" linenumber="73" filename="XeThru/radar/taskRadar.c" list=""/>
-   <Watchpoint numelements="0" expression="data_frame_normolized" evalMode="1" name="data_frame_normolized" radix="16" linenumber="99" filename="XeThru/radar/taskRadar.c" list=""/>
-   <Watchpoint numelements="0" expression="rx_end_count" evalMode="0" name="rx_end_count" radix="16" linenumber="163" filename="XeThru/hal/radar_hal.c" list=""/>
-   <Watchpoint numelements="0" expression="*(unsigned *)0x40003544" evalMode="0" name="TXD.PTR" radix="16" linenumber="0" filename="" list=""/>
-   <Watchpoint numelements="0" expression="wdata" evalMode="0" name="wdata" radix="-1" linenumber="150" filename="XeThru/hal/radar_hal.c" list=""/>
+   <Watchpoint numelements="0" expression="data_frame_normolized" evalMode="1" name="data_frame_normolized" radix="16" linenumber="100" filename="XeThru/radar/taskRadar.c" list=""/>
+   <Watchpoint numelements="0" expression="rx_end_count" evalMode="0" name="rx_end_count" radix="16" linenumber="160" filename="XeThru/hal/radar_hal.c" list=""/>
+   <Watchpoint numelements="0" expression="*(unsigned *)0x40003544" evalMode="0" name="TXD.PTR" radix="16" linenumber="0" filename="../ses" list=""/>
+   <Watchpoint numelements="0" expression="wdata" evalMode="0" name="wdata" radix="-1" linenumber="148" filename="XeThru/hal/radar_hal.c" list=""/>
+   <Watchpoint numelements="0" expression="current_transfer" evalMode="0" name="current_transfer" radix="16" linenumber="205" filename="XeThru/hal/radar_hal.c" list=""/>
   </Watches>
  </Watch1>
  <Watch2>
@@ -76,16 +74,7 @@
   <Watches active="0" update="Never"/>
  </Watch4>
  <Files>
-  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="49" useTextEdit="1" useBinaryEdit="0" left="0" path="XeThru/hal/radar_hal.c" selected="1" top="28" codecName="Default"/>
-  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="140" useTextEdit="1" useBinaryEdit="0" left="0" path="XeThru/radar/taskRadar.c" selected="0" top="115" codecName="Default"/>
-  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="91" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/libraries/util/app_error_weak.c" selected="0" top="67" codecName=""/>
-  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="688" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../main.c" selected="0" top="667" codecName=""/>
-  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="2077" useTextEdit="1" useBinaryEdit="0" left="0" path="XeThru/x4_driver/x4driver.c" selected="0" top="2054" codecName=""/>
-  <SessionOpenFile windowGroup="DockEditLeft" x="24" y="542" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../integration/nrfx/legacy/nrf_drv_spi.h" selected="0" top="518" codecName=""/>
-  <SessionOpenFile windowGroup="DockEditLeft" x="18" y="490" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../modules/nrfx/drivers/src/nrfx_spim.c" selected="0" top="460" codecName=""/>
-  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="2361" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../modules/nrfx/mdk/nrf52.h" selected="0" top="2340" codecName="Default"/>
-  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="120" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../integration/nrfx/legacy/nrf_drv_spi.c" selected="0" top="94" codecName="Default"/>
-  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="647" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../modules/nrfx/hal/nrf_spim.h" selected="0" top="631" codecName="Default"/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="12" y="714" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../main.c" selected="1" top="682" codecName="Default"/>
  </Files>
  <ARMCrossStudioWindow activeProject="ble_app_uart_pca10040_s132" fileDialogDefaultFilter="*.c" autoConnectTarget="J-Link" buildConfiguration="Debug" debugSearchFileMap="C:/Users/marius.lind.volstad/Downloads/nRF5_SDK_15.2.0_9412b96/nRF5_SDK_15.2.0_9412b96/modules/nrfx/mdk/ses_startup_nrf52.s&#xa;&#xa;C:/Users/marius.lind.volstad/Downloads/nRF5_SDK_15.2.0_9412b96/nRF5_SDK_15.2.0_9412b96/modules/nrfx/mdk/ses_startup_nrf_common.s&#xa;" fileDialogInitialDirectory="C:/Users/charlie.shao/Documents/XeThru/repo1.novelda.locol/nrf52_X4driver/modules/nrfx/drivers/src" debugSearchPath="" autoConnectCapabilities="3711"/>
 </session>
