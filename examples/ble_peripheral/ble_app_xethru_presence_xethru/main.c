@@ -525,6 +525,19 @@ APP_ERROR_CHECK(nrf_drv_spi_init(&spi, &spi_config, NULL, NULL));
   }
 }
 
+void radar_frame_handle(uint8_t* frame, uint16_t size)
+{
+  uint16_t transmitted = 0;
+  while (transmitted < size)
+  {
+    uint16_t to_transmit = size - transmitted;
+    if (to_transmit > m_ble_nus_max_data_len)
+      to_transmit = m_ble_nus_max_data_len;
+    ble_nus_data_send(&m_nus, &frame[transmitted], &to_transmit, m_conn_handle);
+    transmitted += to_transmit;
+  }
+}
+
 /**@brief   Function for handling app_uart events.
  *
  * @details This function will receive a single character from the app_uart module and append it to
@@ -695,8 +708,6 @@ int main(void) {
   uart_init();
   printf("\r\nUART started!\r\n");
 
-  taskRadar();
-////////////////////////////////////stop here
   timers_init();
   buttons_leds_init(&erase_bonds);
   power_management_init();
@@ -712,6 +723,8 @@ int main(void) {
   NRF_LOG_INFO("Debug logging for UART over RTT started.");
   advertising_start();
   
+  taskRadar();
+////////////////////////////////////stop here
   // Enter main loop.
   for (;;) {
     idle_state_handle();

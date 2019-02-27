@@ -54,6 +54,9 @@ static uint32_t frame_counter = 0;
 static uint8_t data_frame_bytes[6000];
 static float32_t *data_frame_normolized;
 
+#include "ble_nus.h"
+
+extern void radar_frame_handle(uint8_t* frame, uint16_t size);
 
 void x4driver_data_ready(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t action) {
   nrf_drv_gpiote_out_toggle(BSP_LED_0); //blink LED1 with FPS frequency
@@ -82,7 +85,8 @@ void x4driver_data_ready(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t action)
   printf("Size:%d,New Frame Data Normalized(%d){\r\n", x4driver->frame_read_size, frame_counter);
   for (uint32_t i = 0; i < x4driver->frame_read_size; i=i+1) {
     //printf("[%d]:%X, ",i, data_frame_bytes[i]);
-    printf("%X, ",data_frame_bytes[i]);
+          radar_frame_handle(data_frame_bytes, (uint16_t)x4driver->frame_read_size);
+   // printf("%X, ",data_frame_bytes[i]);
   }
   printf("}\r\n");
 
